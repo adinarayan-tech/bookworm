@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BookWorm — Affordable Second-Hand Textbooks for Students</title>
+  <meta name="description" content="Find affordable second-hand textbooks from fellow students. Save up to 90% on your semester reading list. Browse, order, and get books delivered or pick them up." />
+  <meta name="keywords" content="second hand books, used textbooks, student books, affordable textbooks, campus bookstore" />
+  <meta name="theme-color" content="#020617" />
+
+  <!-- Preconnect to Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+  <!-- Favicon (inline SVG) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📚</text></svg>" />
+
+  <!-- Styles -->
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div id="app">
+    <!-- Navigation Bar -->
+    <nav class="navbar" id="navbar">
+      <div class="container">
+        <div class="nav-brand" onclick="Router.navigate('')">
+          <div class="nav-brand-icon">📚</div>
+          <span class="nav-brand-text">BookWorm</span>
+        </div>
+
+        <div class="nav-links" id="nav-links">
+          <a class="nav-link" data-route="" onclick="Router.navigate(''); event.preventDefault();" href="#/">Home</a>
+          <a class="nav-link" data-route="catalog" onclick="Router.navigate('catalog'); event.preventDefault();" href="#/catalog">Catalog</a>
+          <a class="nav-link" data-route="orders" onclick="if(!Auth.isLoggedIn){Router.navigate('login')}else{Router.navigate('orders')}; event.preventDefault();" href="#/orders">My Orders</a>
+          <a class="nav-link" data-route="admin" onclick="if(!Auth.isAdmin){Router.navigate('login')}else{Router.navigate('admin')}; event.preventDefault();" href="#/admin" id="nav-admin-link">Admin</a>
+        </div>
+
+        <div class="nav-actions">
+          <button class="nav-cart-btn" onclick="if(!Auth.isLoggedIn){Router.navigate('login')}else{Router.navigate('cart')}" title="Cart" id="nav-cart-btn">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg>
+            <span class="cart-badge" id="cart-badge">0</span>
+          </button>
+          <div id="nav-user-area" class="flex items-center gap-05"></div>
+          <button class="nav-toggle" id="nav-toggle" onclick="document.getElementById('nav-links').classList.toggle('open')">
+            <span></span><span></span><span></span>
+          </button>
+        </div>
+      </div>
+    </nav>
+
+    <!-- Page Content (SPA target) -->
+    <main class="page-content" id="page-content">
+      <!-- Pages are rendered here by the router -->
+      <div class="container" style="display: flex; align-items: center; justify-content: center; min-height: 60vh;">
+        <div class="text-center">
+          <div style="font-size: 3rem; margin-bottom: 1rem; animation: pulse-glow 2s ease-in-out infinite;">📚</div>
+          <p class="text-secondary">Loading BookWorm...</p>
+        </div>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="container">
+        <div class="footer-content">
+          <div class="footer-text">
+            © 2026 BookWorm — Built for students, by students. All books are 100% second-hand.
+          </div>
+          <div class="footer-links">
+            <a class="footer-link" href="#" onclick="event.preventDefault()">About</a>
+            <a class="footer-link" href="#" onclick="event.preventDefault()">Contact</a>
+            <a class="footer-link" href="#" onclick="event.preventDefault()">Privacy</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- Toast Container -->
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- Scripts (order matters) -->
+  <script src="app.js"></script>
+  <script src="components.js"></script>
+  <script src="pages.js"></script>
+  <script src="router.js"></script>
+</body>
+</html>
