@@ -655,7 +655,16 @@ const Pages = {
   login() {
     const page = document.getElementById('page-content');
     Pages._selectedRole = 'student';
+    Pages._authMode = 'signin'; // 'signin' or 'signup'
 
+    Pages._renderLogin(page);
+  },
+
+  _selectedRole: 'student',
+  _authMode: 'signin',
+
+  _renderLogin(page) {
+    const isSignIn = this._authMode === 'signin';
     page.innerHTML = `
       <div class="login-page">
         <div class="login-card">
@@ -665,39 +674,50 @@ const Pages = {
           <h1>Welcome to BookWorm</h1>
           <p class="login-subtitle">Sign in to start shopping or manage your store.</p>
 
-          <div class="role-selector">
-            <div class="role-option selected" id="role-student" onclick="Pages._selectRole('student')">
-              <div class="role-option-icon">🎓</div>
-              <div class="role-option-label">Student</div>
-            </div>
-            <div class="role-option" id="role-admin" onclick="Pages._selectRole('admin')">
-              <div class="role-option-icon">🔧</div>
-              <div class="role-option-label">Store Admin</div>
-            </div>
+          <div class="auth-tabs" style="display: flex; gap: 1rem; margin-bottom: 2rem; border-bottom: 1px solid var(--border-color); padding-bottom: 1rem;">
+            <button class="btn ${isSignIn ? 'btn-primary' : 'btn-outline'}" style="flex: 1" onclick="Pages._switchAuthMode('signin')">Sign In</button>
+            <button class="btn ${!isSignIn ? 'btn-primary' : 'btn-outline'}" style="flex: 1" onclick="Pages._switchAuthMode('signup')">Create Account</button>
           </div>
 
-          <div class="form-group">
-            <label class="form-label">Your Name *</label>
-            <input type="text" class="form-input" id="login-name" placeholder="e.g. Aarav Patel" />
-          </div>
+          ${!isSignIn ? `
+            <div class="role-selector">
+              <div class="role-option ${this._selectedRole === 'student' ? 'selected' : ''}" id="role-student" onclick="Pages._selectRole('student')">
+                <div class="role-option-icon">🎓</div>
+                <div class="role-option-label">Student</div>
+              </div>
+              <div class="role-option ${this._selectedRole === 'admin' ? 'selected' : ''}" id="role-admin" onclick="Pages._selectRole('admin')">
+                <div class="role-option-icon">🔧</div>
+                <div class="role-option-label">Store Admin</div>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Your Name *</label>
+              <input type="text" class="form-input" id="login-name" placeholder="e.g. Aarav Patel" />
+            </div>
+          ` : ''}
+
           <div class="form-group">
             <label class="form-label">Email *</label>
             <input type="email" class="form-input" id="login-email" placeholder="you@university.edu" />
           </div>
+          
+          <div class="form-group" style="margin-bottom: 2rem;">
+            <label class="form-label">Password *</label>
+            <input type="password" class="form-input" id="login-pw" placeholder="••••••••" />
+          </div>
 
-          <button class="btn btn-primary w-full btn-lg" onclick="Pages._handleLogin()">
-            Sign In
+          <button class="btn btn-primary w-full btn-lg" onclick="Pages._handleAuth()">
+            ${isSignIn ? 'Sign In' : 'Create Account'}
           </button>
-
-          <p class="text-xs text-muted text-center mt-1">
-            Use admin@bookworm.com for admin access.
-          </p>
         </div>
       </div>
     `;
   },
 
-  _selectedRole: 'student',
+  _switchAuthMode(mode) {
+    this._authMode = mode;
+    this._renderLogin(document.getElementById('page-content'));
+  },
 
   _selectRole(role) {
     this._selectedRole = role;
@@ -705,29 +725,46 @@ const Pages = {
     document.getElementById('role-admin').classList.toggle('selected', role === 'admin');
   },
 
-  async _handleLogin() {
-    const name = document.getElementById('login-name')?.value.trim();
+  async _handleAuth() {
+    const isSignIn = this._authMode === 'signin';
     const email = document.getElementById('login-email')?.value.trim();
+    const password = document.getElementById('login-pw')?.value.trim();
+    let name = '';
 
-    if (!name || !email) {
-      Toast.error('Please enter your name and email.');
+    if (!isSignIn) name = document.getElementById('login-name')?.value.trim();
+
+    if (!email || !password || (!isSignIn && !name)) {
+      Toast.error('Please fill in all required fields.');
       return;
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      Toast.error('Please enter a valid email address.');
-      return;
-    }
-
-    Toast.info('Signing in...');
-    const user = await Auth.login(name, email, this._selectedRole);
-    if (!user) {
-      Toast.error('Login failed. Please try again.');
+    if (password.length < 6) {
+      Toast.error('Password must be at least 6 characters.');
       return;
     }
 
-    Toast.success(`Welcome, ${user.name}! Signed in as ${user.role}.`);
-    Router.navigate(user.role === 'admin' ? 'admin' : 'catalog');
-    Router._updateNavbar();
+    try {
+      if (isSignIn) {
+        Toast.info('Signing in...');
+        await Auth.login(email, password);
+        Toast.success('Welcome back!');
+      } else {
+        Toast.info('Creating account...');
+        await Auth.signUp(name, email, password, this._selectedRole);
+        Toast.success('Account created! You are now signed in.');
+      }
+      
+      // Wait a moment for auth state to sync and profile to load
+      setTimeout(() => {
+        if (Auth.isLoggedIn) {
+          Router.navigate(Auth.isAdmin ? 'admin' : 'catalog');
+        } else {
+          Router.navigate('catalog');
+        }
+      }, 500);
+
+    } catch (err) {
+      Toast.error(err.message || 'Authentication failed.');
+    }
   },
 
   // ── ADMIN DASHBOARD ──

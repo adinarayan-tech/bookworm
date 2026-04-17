@@ -349,37 +349,54 @@ const DB = {
 const Auth = {
   _current: null,
 
-  init() {
-    const stored = localStorage.getItem('bookworm_currentUser');
-    if (stored) {
-      try { this._current = JSON.parse(stored); } catch { this._current = null; }
+  async init() {
+    // Check active session on load
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session && session.user) {
+      await this._fetchProfile(session.user.id);
+    }
+
+    // Listen to changes (login, logout, token refresh)
+    supabaseClient.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        await this._fetchProfile(session.user.id);
+      } else if (event === 'SIGNED_OUT') {
+        this._current = null;
+        Router.navigate('login');
+      }
+    });
+  },
+
+  async _fetchProfile(userId) {
+    const { data, error } = await supabaseClient.from('users').select('*').eq('id', userId).single();
+    if (!error && data) {
+      this._current = _toCamel(data);
+      Router._updateNav(); // Force nav update since user is ready
     }
   },
 
-  async login(name, email, role) {
-    // Check if user exists in Supabase
-    const { data: existingUsers } = await supabaseClient
-      .from('users').select('*').eq('email', email);
-
-    let user;
-    if (existingUsers && existingUsers.length > 0) {
-      user = _toCamel(existingUsers[0]);
-    } else {
-      // Create new user in Supabase
-      const { data: newUser, error } = await supabaseClient
-        .from('users').insert({ name, email, role, phone: '' }).select().single();
-      if (error) { console.error('login create user:', error); return null; }
-      user = _toCamel(newUser);
-    }
-
-    this._current = user;
-    localStorage.setItem('bookworm_currentUser', JSON.stringify(user));
-    return user;
+  async signUp(name, email, password, role) {
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: { name, role } // Trigger will copy this to public.users
+      }
+    });
+    if (error) { console.error('signUp:', error); throw error; }
+    return data;
   },
 
-  logout() {
-    this._current = null;
-    localStorage.removeItem('bookworm_currentUser');
+  async login(email, password) {
+    const { data, error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) { console.error('login:', error); throw error; }
+    // Role handling is done via onAuthStateChange calling _fetchProfile
+    return data;
+  },
+
+  async logout() {
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) console.error('logout:', error);
   },
 
   get user() { return this._current; },
