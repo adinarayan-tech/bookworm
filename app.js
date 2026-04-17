@@ -1,6 +1,6 @@
 /* ============================================
-   BookWorm — Application Core
-   Data layer, state management, seed data
+   BookWorm — Application Core (Supabase Edition)
+   Data layer, state management, utilities
    ============================================ */
 
 // ── Utility Functions ──
@@ -63,280 +63,254 @@ const Utils = {
   calcSavings(original, current) {
     if (!original || original <= current) return 0;
     return Math.round(((original - current) / original) * 100);
+  },
+  // Show a loading spinner inside a container
+  showLoader(container) {
+    container.innerHTML = `
+      <div class="page-loader">
+        <div class="loader-spinner"></div>
+        <p class="text-secondary">Loading...</p>
+      </div>`;
   }
 };
 
-// ── Seed Data ──
-const SEED_BOOKS = [
-  {
-    id: 'book_001', title: 'Introduction to Algorithms', author: 'Thomas H. Cormen',
-    isbn: '978-0262033848', condition: 'Good', studentPrice: 450, originalPrice: 4200,
-    description: 'The classic comprehensive textbook covering a broad range of algorithms. Highlights at the start of each chapter, minor wear on spine.',
-    genre: 'Computer Science', quantity: 3, listedAt: '2026-03-15T10:00:00Z'
-  },
-  {
-    id: 'book_002', title: 'Discrete Mathematics and Its Applications', author: 'Kenneth H. Rosen',
-    isbn: '978-0073383095', condition: 'Like New', studentPrice: 380, originalPrice: 3800,
-    description: 'Barely used copy from previous semester. No markings, clean pages. Perfect for CS/Math students.',
-    genre: 'Mathematics', quantity: 2, listedAt: '2026-03-18T14:00:00Z'
-  },
-  {
-    id: 'book_003', title: 'Clean Code', author: 'Robert C. Martin',
-    isbn: '978-0132350884', condition: 'Good', studentPrice: 320, originalPrice: 2900,
-    description: 'A handbook of Agile software craftsmanship. Some sticky notes inside, otherwise excellent condition.',
-    genre: 'Computer Science', quantity: 5, listedAt: '2026-03-20T09:30:00Z'
-  },
-  {
-    id: 'book_004', title: 'Engineering Mechanics: Statics', author: 'R.C. Hibbeler',
-    isbn: '978-0133918922', condition: 'Fair', studentPrice: 280, originalPrice: 3500,
-    description: 'Some highlighting in early chapters, all pages intact. Good enough for coursework reference.',
-    genre: 'Engineering', quantity: 4, listedAt: '2026-03-22T11:00:00Z'
-  },
-  {
-    id: 'book_005', title: 'Organic Chemistry', author: 'Paula Yurkanis Bruice',
-    isbn: '978-0134042282', condition: 'Worn', studentPrice: 200, originalPrice: 4100,
-    description: 'Heavy use but fully functional. Cover has creases, some pages dog-eared. Great deal for budget-conscious students.',
-    genre: 'Chemistry', quantity: 2, listedAt: '2026-03-25T08:00:00Z'
-  },
-  {
-    id: 'book_006', title: 'Psychology: Themes and Variations', author: 'Wayne Weiten',
-    isbn: '978-1337408219', condition: 'Like New', studentPrice: 350, originalPrice: 3200,
-    description: 'Pristine condition — bought for an elective and never opened after the midterm.',
-    genre: 'Psychology', quantity: 1, listedAt: '2026-03-28T16:00:00Z'
-  },
-  {
-    id: 'book_007', title: 'Principles of Economics', author: 'N. Gregory Mankiw',
-    isbn: '978-1305585126', condition: 'Good', studentPrice: 390, originalPrice: 3600,
-    description: 'Standard introductory economics textbook. Minor pencil notes in margins, easily erasable.',
-    genre: 'Economics', quantity: 3, listedAt: '2026-04-01T12:00:00Z'
-  },
-  {
-    id: 'book_008', title: 'The Design of Everyday Things', author: 'Don Norman',
-    isbn: '978-0465050659', condition: 'Like New', studentPrice: 250, originalPrice: 1800,
-    description: 'Essential read for UX/UI students. Clean copy, no markings.',
-    genre: 'Art', quantity: 6, listedAt: '2026-04-02T10:00:00Z'
-  },
-  {
-    id: 'book_009', title: 'Calculus: Early Transcendentals', author: 'James Stewart',
-    isbn: '978-1285741550', condition: 'Fair', studentPrice: 340, originalPrice: 4500,
-    description: 'Solutions worked out in pencil for first 5 chapters. Binding intact, no missing pages.',
-    genre: 'Mathematics', quantity: 2, listedAt: '2026-04-03T14:30:00Z'
-  },
-  {
-    id: 'book_010', title: 'Fundamentals of Physics', author: 'David Halliday & Robert Resnick',
-    isbn: '978-1118230718', condition: 'Good', studentPrice: 420, originalPrice: 4000,
-    description: 'The definitive university physics textbook. Minor cover wear, excellent interior.',
-    genre: 'Physics', quantity: 3, listedAt: '2026-04-05T09:00:00Z'
-  },
-  {
-    id: 'book_011', title: 'Molecular Biology of the Cell', author: 'Bruce Alberts',
-    isbn: '978-0815345244', condition: 'Good', studentPrice: 480, originalPrice: 5200,
-    description: 'Comprehensive coverage of cell biology. Some tabs attached, minor highlighting.',
-    genre: 'Biology', quantity: 1, listedAt: '2026-04-07T11:00:00Z'
-  },
-  {
-    id: 'book_012', title: 'Data Structures Using C++', author: 'D.S. Malik',
-    isbn: '978-1133626381', condition: 'Worn', studentPrice: 180, originalPrice: 2800,
-    description: 'Well-loved copy. Spine cracked but pages all present. Budget-friendly option.',
-    genre: 'Computer Science', quantity: 4, listedAt: '2026-04-08T15:00:00Z'
-  },
-  {
-    id: 'book_013', title: 'A Brief History of Time', author: 'Stephen Hawking',
-    isbn: '978-0553380163', condition: 'Like New', studentPrice: 150, originalPrice: 800,
-    description: 'Classic popular science read. Great condition, perfect for a light semester read.',
-    genre: 'Physics', quantity: 7, listedAt: '2026-04-09T10:00:00Z'
-  },
-  {
-    id: 'book_014', title: 'The Art of War', author: 'Sun Tzu',
-    isbn: '978-1599869773', condition: 'Good', studentPrice: 80, originalPrice: 400,
-    description: 'Compact edition. Perfect for philosophy and strategy enthusiasts.',
-    genre: 'Philosophy', quantity: 10, listedAt: '2026-04-10T08:00:00Z'
-  },
-  {
-    id: 'book_015', title: 'Computer Networking: A Top-Down Approach', author: 'James Kurose',
-    isbn: '978-0133594140', condition: 'Good', studentPrice: 410, originalPrice: 3900,
-    description: 'Excellent networking textbook, minor wear. Includes Wireshark lab inserts.',
-    genre: 'Computer Science', quantity: 2, listedAt: '2026-04-11T13:00:00Z'
+// ── Snake ↔ Camel Case Transform (Supabase uses snake_case, JS uses camelCase) ──
+const _snakeToCamel = (str) => str.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+const _camelToSnake = (str) => str.replace(/[A-Z]/g, c => '_' + c.toLowerCase());
+
+function _transformKeys(obj, fn) {
+  if (Array.isArray(obj)) return obj.map(item => _transformKeys(item, fn));
+  if (obj !== null && typeof obj === 'object' && !(obj instanceof Date)) {
+    return Object.fromEntries(
+      Object.entries(obj).map(([key, val]) => [fn(key), _transformKeys(val, fn)])
+    );
   }
-];
+  return obj;
+}
 
-// ── LocalStorage Adapter ──
+const _toCamel = (data) => _transformKeys(data, _snakeToCamel);
+const _toSnake = (data) => _transformKeys(data, _camelToSnake);
+
+// ── Supabase DB Adapter ──
 const DB = {
-  _getStore(key) {
-    try {
-      return JSON.parse(localStorage.getItem('bookworm_' + key)) || null;
-    } catch { return null; }
-  },
-  _setStore(key, data) {
-    localStorage.setItem('bookworm_' + key, JSON.stringify(data));
+  async init() {
+    // No-op — data lives in Supabase, no local seeding needed
   },
 
-  // Initialize with seed data if first run
-  init() {
-    if (!this._getStore('initialized')) {
-      this._setStore('books', SEED_BOOKS);
-      this._setStore('orders', []);
-      this._setStore('users', [
-        { id: 'admin_001', email: 'admin@bookworm.com', name: 'Store Admin', role: 'admin', phone: '9876543210', createdAt: new Date().toISOString() }
-      ]);
-      this._setStore('initialized', true);
-    }
+  // ── Books CRUD ──
+  async getBooks() {
+    const { data, error } = await supabaseClient
+      .from('books').select('*').order('listed_at', { ascending: false });
+    if (error) { console.error('getBooks:', error); return []; }
+    return _toCamel(data);
   },
 
-  // Books CRUD
-  getBooks() {
-    return this._getStore('books') || [];
+  async getBookById(id) {
+    const { data, error } = await supabaseClient
+      .from('books').select('*').eq('id', id).single();
+    if (error) { console.error('getBookById:', error); return null; }
+    return _toCamel(data);
   },
-  getBookById(id) {
-    return this.getBooks().find(b => b.id === id) || null;
-  },
-  searchBooks(query, filters = {}) {
-    let books = this.getBooks();
+
+  async searchBooks(query, filters = {}) {
+    let q = supabaseClient.from('books').select('*');
+
     if (query) {
-      const q = query.toLowerCase();
-      books = books.filter(b =>
-        b.title.toLowerCase().includes(q) ||
-        b.author.toLowerCase().includes(q) ||
-        (b.isbn && b.isbn.includes(q)) ||
-        (b.genre && b.genre.toLowerCase().includes(q))
-      );
+      q = q.or(`title.ilike.%${query}%,author.ilike.%${query}%,isbn.ilike.%${query}%,genre.ilike.%${query}%`);
     }
     if (filters.condition && filters.condition !== 'all') {
-      books = books.filter(b => b.condition === filters.condition);
+      q = q.eq('condition', filters.condition);
     }
     if (filters.genre && filters.genre !== 'all') {
-      books = books.filter(b => b.genre === filters.genre);
+      q = q.eq('genre', filters.genre);
     }
     if (filters.minPrice) {
-      books = books.filter(b => b.studentPrice >= Number(filters.minPrice));
+      q = q.gte('student_price', Number(filters.minPrice));
     }
     if (filters.maxPrice) {
-      books = books.filter(b => b.studentPrice <= Number(filters.maxPrice));
+      q = q.lte('student_price', Number(filters.maxPrice));
     }
     if (filters.inStock) {
-      books = books.filter(b => b.quantity > 0);
+      q = q.gt('quantity', 0);
     }
+
     // Sort
-    if (filters.sort === 'price-asc') books.sort((a, b) => a.studentPrice - b.studentPrice);
-    else if (filters.sort === 'price-desc') books.sort((a, b) => b.studentPrice - a.studentPrice);
-    else if (filters.sort === 'newest') books.sort((a, b) => new Date(b.listedAt) - new Date(a.listedAt));
-    else if (filters.sort === 'title') books.sort((a, b) => a.title.localeCompare(b.title));
-    else books.sort((a, b) => new Date(b.listedAt) - new Date(a.listedAt)); // default: newest
+    if (filters.sort === 'price-asc') q = q.order('student_price', { ascending: true });
+    else if (filters.sort === 'price-desc') q = q.order('student_price', { ascending: false });
+    else if (filters.sort === 'title') q = q.order('title', { ascending: true });
+    else q = q.order('listed_at', { ascending: false });
 
-    return books;
-  },
-  addBook(book) {
-    const books = this.getBooks();
-    const newBook = {
-      id: Utils.generateId(),
-      ...book,
-      listedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-    books.push(newBook);
-    this._setStore('books', books);
-    return newBook;
-  },
-  updateBook(id, updates) {
-    const books = this.getBooks();
-    const idx = books.findIndex(b => b.id === id);
-    if (idx === -1) return null;
-    books[idx] = { ...books[idx], ...updates, updatedAt: new Date().toISOString() };
-    this._setStore('books', books);
-    return books[idx];
-  },
-  deleteBook(id) {
-    const books = this.getBooks().filter(b => b.id !== id);
-    this._setStore('books', books);
+    const { data, error } = await q;
+    if (error) { console.error('searchBooks:', error); return []; }
+    return _toCamel(data);
   },
 
-  // Orders CRUD
-  getOrders(userId) {
-    const orders = this._getStore('orders') || [];
-    if (userId) return orders.filter(o => o.userId === userId);
-    return orders;
-  },
-  getOrderById(id) {
-    return (this._getStore('orders') || []).find(o => o.id === id) || null;
-  },
-  createOrder(orderData) {
-    const orders = this.getOrders();
-    const books = this.getBooks();
+  async addBook(book) {
+    const snakeBook = _toSnake(book);
+    delete snakeBook.id;
+    snakeBook.listed_at = new Date().toISOString();
+    snakeBook.updated_at = new Date().toISOString();
 
-    // Validate and decrement stock
+    const { data, error } = await supabaseClient
+      .from('books').insert(snakeBook).select().single();
+    if (error) { console.error('addBook:', error); return null; }
+    return _toCamel(data);
+  },
+
+  async updateBook(id, updates) {
+    const snakeUpdates = _toSnake(updates);
+    snakeUpdates.updated_at = new Date().toISOString();
+
+    const { data, error } = await supabaseClient
+      .from('books').update(snakeUpdates).eq('id', id).select().single();
+    if (error) { console.error('updateBook:', error); return null; }
+    return _toCamel(data);
+  },
+
+  async deleteBook(id) {
+    const { error } = await supabaseClient.from('books').delete().eq('id', id);
+    if (error) console.error('deleteBook:', error);
+  },
+
+  // ── Orders CRUD ──
+  async getOrders(userId) {
+    let q = supabaseClient.from('orders').select('*, order_items(*)');
+    if (userId) q = q.eq('user_id', userId);
+    q = q.order('created_at', { ascending: false });
+
+    const { data, error } = await q;
+    if (error) { console.error('getOrders:', error); return []; }
+
+    // Transform keys and map order_items → items for backward compatibility
+    return data.map(order => {
+      const camelOrder = _toCamel(order);
+      camelOrder.items = camelOrder.orderItems || [];
+      delete camelOrder.orderItems;
+      return camelOrder;
+    });
+  },
+
+  async getOrderById(id) {
+    const { data, error } = await supabaseClient
+      .from('orders').select('*, order_items(*)').eq('id', id).single();
+    if (error) { console.error('getOrderById:', error); return null; }
+    const camelOrder = _toCamel(data);
+    camelOrder.items = camelOrder.orderItems || [];
+    delete camelOrder.orderItems;
+    return camelOrder;
+  },
+
+  async createOrder(orderData) {
+    // 1. Validate stock
     for (const item of orderData.items) {
-      const book = books.find(b => b.id === item.bookId);
+      const { data: book } = await supabaseClient
+        .from('books').select('id, title, quantity').eq('id', item.bookId).single();
       if (!book || book.quantity < item.quantity) {
         return { error: `"${book ? book.title : 'Unknown book'}" is out of stock or insufficient quantity.` };
       }
     }
 
-    // Decrement stock
+    // 2. Decrement stock
     for (const item of orderData.items) {
-      const book = books.find(b => b.id === item.bookId);
-      book.quantity -= item.quantity;
+      const { data: book } = await supabaseClient
+        .from('books').select('quantity').eq('id', item.bookId).single();
+      await supabaseClient.from('books')
+        .update({ quantity: book.quantity - item.quantity, updated_at: new Date().toISOString() })
+        .eq('id', item.bookId);
     }
-    this._setStore('books', books);
 
-    const newOrder = {
-      id: Utils.generateId(),
-      ...orderData,
+    // 3. Create order row
+    const orderPayload = {
+      user_id: orderData.userId,
+      fulfillment_type: orderData.fulfillmentType,
       status: 'pending',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
+      total_amount: orderData.totalAmount,
+      shipping_name: orderData.shippingName || null,
+      shipping_address: orderData.shippingAddress || null,
+      shipping_city: orderData.shippingCity || null,
+      shipping_zip: orderData.shippingZip || null,
+      shipping_phone: orderData.shippingPhone || null,
+      collect_date: orderData.collectDate || null,
+      collect_time_slot: orderData.collectTimeSlot || null
     };
-    orders.push(newOrder);
-    this._setStore('orders', orders);
-    return newOrder;
-  },
-  updateOrderStatus(orderId, status) {
-    const orders = this._getStore('orders') || [];
-    const idx = orders.findIndex(o => o.id === orderId);
-    if (idx === -1) return null;
 
+    const { data: newOrder, error } = await supabaseClient
+      .from('orders').insert(orderPayload).select().single();
+    if (error) { console.error('createOrder:', error); return { error: 'Failed to create order.' }; }
+
+    // 4. Create order items
+    const itemsPayload = orderData.items.map(item => ({
+      order_id: newOrder.id,
+      book_id: item.bookId,
+      quantity: item.quantity,
+      price_at_purchase: item.priceAtPurchase
+    }));
+
+    const { error: itemsError } = await supabaseClient.from('order_items').insert(itemsPayload);
+    if (itemsError) console.error('createOrderItems:', itemsError);
+
+    const result = _toCamel(newOrder);
+    result.items = orderData.items;
+    return result;
+  },
+
+  async updateOrderStatus(orderId, status) {
     // If cancelling, restore stock
-    if (status === 'cancelled' && orders[idx].status !== 'cancelled') {
-      const books = this.getBooks();
-      for (const item of orders[idx].items) {
-        const book = books.find(b => b.id === item.bookId);
-        if (book) book.quantity += item.quantity;
+    if (status === 'cancelled') {
+      const order = await this.getOrderById(orderId);
+      if (order && order.status !== 'cancelled') {
+        for (const item of order.items) {
+          const { data: book } = await supabaseClient
+            .from('books').select('quantity').eq('id', item.bookId).single();
+          if (book) {
+            await supabaseClient.from('books')
+              .update({ quantity: book.quantity + item.quantity, updated_at: new Date().toISOString() })
+              .eq('id', item.bookId);
+          }
+        }
       }
-      this._setStore('books', books);
     }
 
-    orders[idx].status = status;
-    orders[idx].updatedAt = new Date().toISOString();
-    this._setStore('orders', orders);
-    return orders[idx];
+    const { data, error } = await supabaseClient
+      .from('orders').update({ status, updated_at: new Date().toISOString() }).eq('id', orderId).select().single();
+    if (error) { console.error('updateOrderStatus:', error); return null; }
+    return _toCamel(data);
   },
 
-  // Users
-  getUsers() {
-    return this._getStore('users') || [];
-  },
-  getUserById(id) {
-    return this.getUsers().find(u => u.id === id) || null;
+  // ── Users ──
+  async getUsers() {
+    const { data, error } = await supabaseClient.from('users').select('*');
+    if (error) { console.error('getUsers:', error); return []; }
+    return _toCamel(data);
   },
 
-  // Stats (Admin)
-  getStats() {
-    const books = this.getBooks();
-    const orders = this.getOrders();
+  async getUserById(id) {
+    const { data, error } = await supabaseClient
+      .from('users').select('*').eq('id', id).single();
+    if (error) return null;
+    return _toCamel(data);
+  },
+
+  // ── Stats (Admin) ──
+  async getStats() {
+    const books = await this.getBooks();
+    const orders = await this.getOrders();
     return {
       totalBooks: books.length,
       totalStock: books.reduce((sum, b) => sum + b.quantity, 0),
       pendingOrders: orders.filter(o => o.status === 'pending').length,
       totalOrders: orders.length,
-      revenue: orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + o.totalAmount, 0),
+      revenue: orders.filter(o => o.status !== 'cancelled').reduce((sum, o) => sum + Number(o.totalAmount), 0),
       lowStock: books.filter(b => b.quantity > 0 && b.quantity <= 2).length,
       outOfStock: books.filter(b => b.quantity === 0).length
     };
   },
 
-  // Genres list
-  getGenres() {
-    const books = this.getBooks();
-    return [...new Set(books.map(b => b.genre).filter(Boolean))].sort();
+  // ── Genres list ──
+  async getGenres() {
+    const { data, error } = await supabaseClient.from('books').select('genre');
+    if (error) return [];
+    return [...new Set(data.map(b => b.genre).filter(Boolean))].sort();
   }
 };
 
@@ -350,27 +324,33 @@ const Auth = {
       try { this._current = JSON.parse(stored); } catch { this._current = null; }
     }
   },
-  login(name, email, role) {
-    const users = DB.getUsers();
-    let user = users.find(u => u.email === email);
-    if (!user) {
-      user = {
-        id: Utils.generateId(),
-        name, email, role,
-        phone: '',
-        createdAt: new Date().toISOString()
-      };
-      users.push(user);
-      DB._setStore('users', users);
+
+  async login(name, email, role) {
+    // Check if user exists in Supabase
+    const { data: existingUsers } = await supabaseClient
+      .from('users').select('*').eq('email', email);
+
+    let user;
+    if (existingUsers && existingUsers.length > 0) {
+      user = _toCamel(existingUsers[0]);
+    } else {
+      // Create new user in Supabase
+      const { data: newUser, error } = await supabaseClient
+        .from('users').insert({ name, email, role, phone: '' }).select().single();
+      if (error) { console.error('login create user:', error); return null; }
+      user = _toCamel(newUser);
     }
+
     this._current = user;
     localStorage.setItem('bookworm_currentUser', JSON.stringify(user));
     return user;
   },
+
   logout() {
     this._current = null;
     localStorage.removeItem('bookworm_currentUser');
   },
+
   get user() { return this._current; },
   get isLoggedIn() { return !!this._current; },
   get isAdmin() { return this._current?.role === 'admin'; }
@@ -433,10 +413,10 @@ const Cart = {
     this._items = [];
     this._save();
   },
-  // Validate cart against current inventory
-  validate() {
+  // Validate cart against current inventory (async — talks to Supabase)
+  async validate() {
     const issues = [];
-    const books = DB.getBooks();
+    const books = await DB.getBooks();
     this._items = this._items.filter(item => {
       const book = books.find(b => b.id === item.bookId);
       if (!book) {
@@ -517,8 +497,8 @@ const Icons = {
 };
 
 // ── Initialize everything on DOM ready ──
-document.addEventListener('DOMContentLoaded', () => {
-  DB.init();
+document.addEventListener('DOMContentLoaded', async () => {
+  await DB.init();
   Auth.init();
   Cart.init();
   Toast.init();

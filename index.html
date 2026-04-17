@@ -79,7 +79,11 @@
   <!-- Toast Container -->
   <div class="toast-container" id="toast-container"></div>
 
-  <!-- Scripts (order matters) -->
+  <!-- Supabase JS Client (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <!-- Scripts (order matters: config → core → components → pages → router) -->
+  <script src="supabase-config.js"></script>
   <script src="app.js"></script>
   <script src="components.js"></script>
   <script src="pages.js"></script>
