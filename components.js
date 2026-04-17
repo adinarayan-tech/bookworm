@@ -9,7 +9,7 @@ const Components = {
     const emoji = Utils.getBookEmoji(book.genre);
     const conditionClass = Utils.getConditionBadgeClass(book.condition);
     const savings = Utils.calcSavings(book.originalPrice, book.studentPrice);
-    const coverUrl = Utils.getBookCover(book.isbn);
+    const coverUrl = book.imageUrl || Utils.getBookCover(book.isbn);
 
     return `
       <div class="book-card" onclick="Router.navigate('book?id=${book.id}')"

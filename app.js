@@ -181,6 +181,28 @@ const DB = {
     if (error) console.error('deleteBook:', error);
   },
 
+  async uploadImage(file) {
+    if (!file) return null;
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
+    const filePath = `covers/${fileName}`;
+
+    const { error: uploadError } = await supabaseClient.storage
+      .from('book-covers')
+      .upload(filePath, file);
+
+    if (uploadError) {
+      console.error('uploadImage error:', uploadError);
+      return null;
+    }
+
+    const { data } = supabaseClient.storage
+      .from('book-covers')
+      .getPublicUrl(filePath);
+
+    return data.publicUrl;
+  },
+
   // ── Orders CRUD ──
   async getOrders(userId) {
     let q = supabaseClient.from('orders').select('*, order_items(*)');

@@ -229,7 +229,7 @@ const Pages = {
     const savings = Utils.calcSavings(book.originalPrice, book.studentPrice);
     const emoji = Utils.getBookEmoji(book.genre);
     const conditionClass = Utils.getConditionBadgeClass(book.condition);
-    const coverUrl = Utils.getBookCoverLarge(book.isbn);
+    const coverUrl = book.imageUrl || Utils.getBookCoverLarge(book.isbn);
 
     page.innerHTML = `
       <div class="container">
@@ -1017,11 +1017,17 @@ const Pages = {
               <input type="number" class="form-input" id="modal-original" placeholder="1200" min="0" value="${isEdit ? (book.originalPrice || '') : ''}" />
             </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Quantity *</label>
-            <input type="number" class="form-input" id="modal-qty" placeholder="1" min="0" value="${isEdit ? book.quantity : '1'}" />
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Quantity *</label>
+              <input type="number" class="form-input" id="modal-qty" placeholder="1" min="0" value="${isEdit ? book.quantity : '1'}" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Cover Photo (Optional)</label>
+              <input type="file" class="form-input" id="modal-image" accept="image/*" style="padding: 0.5rem 1rem;" />
+            </div>
           </div>
-          <div class="form-group">
+          <div class="form-group" style="grid-column: 1 / -1;">
             <label class="form-label">Description</label>
             <textarea class="form-textarea" id="modal-description" placeholder="Book condition details, highlights, etc.">${isEdit ? (book.description || '') : ''}</textarea>
           </div>
@@ -1052,6 +1058,19 @@ const Pages = {
       }
 
       const data = { title, author, isbn, condition, genre, studentPrice, originalPrice, quantity, description };
+      if (isEdit) data.imageUrl = book.imageUrl; // Keep existing if not changed
+
+      const imageFile = document.getElementById('modal-image').files[0];
+      if (imageFile) {
+        document.getElementById('modal-save-btn').innerText = 'Uploading Image...';
+        document.getElementById('modal-save-btn').disabled = true;
+        const uploadedUrl = await DB.uploadImage(imageFile);
+        if (uploadedUrl) {
+          data.imageUrl = uploadedUrl;
+        } else {
+          Toast.error('Image upload failed. Saving without photo.');
+        }
+      }
 
       if (isEdit) {
         await DB.updateBook(book.id, data);
