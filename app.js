@@ -64,6 +64,15 @@ const Utils = {
     if (!original || original <= current) return 0;
     return Math.round(((original - current) / original) * 100);
   },
+  // OpenLibrary cover URLs (free, no API key)
+  getBookCover(isbn, size = 'M') {
+    if (!isbn) return null;
+    const clean = isbn.replace(/-/g, '');
+    return `https://covers.openlibrary.org/b/isbn/${clean}-${size}.jpg`;
+  },
+  getBookCoverLarge(isbn) {
+    return this.getBookCover(isbn, 'L');
+  },
   // Show a loading spinner inside a container
   showLoader(container) {
     container.innerHTML = `
