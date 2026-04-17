@@ -394,6 +394,16 @@ const Auth = {
     return data;
   },
 
+  async signInWithGoogle() {
+    const { error } = await supabaseClient.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    });
+    if (error) { console.error('google login:', error); throw error; }
+  },
+
   async logout() {
     const { error } = await supabaseClient.auth.signOut();
     if (error) console.error('logout:', error);
