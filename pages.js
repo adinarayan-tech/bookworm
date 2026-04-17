@@ -229,13 +229,21 @@ const Pages = {
     const savings = Utils.calcSavings(book.originalPrice, book.studentPrice);
     const emoji = Utils.getBookEmoji(book.genre);
     const conditionClass = Utils.getConditionBadgeClass(book.condition);
+    const coverUrl = Utils.getBookCoverLarge(book.isbn);
 
     page.innerHTML = `
       <div class="container">
         <div class="back-btn" onclick="Router.navigate('catalog')">${Icons.chevronLeft} Back to Catalog</div>
 
         <div class="book-detail">
-          <div class="book-detail-image">${emoji}</div>
+          <div class="book-detail-image">
+            ${coverUrl ? `
+              <img src="${coverUrl}" alt="${book.title}" class="book-detail-cover-img"
+                   onload="if(this.naturalWidth<=1){this.style.display='none';this.nextElementSibling.style.display='flex';}"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+              <div class="book-cover-fallback detail-fallback" style="display:none; height:100%; width:100%; align-items:center; justify-content:center; font-size:6rem;">${emoji}</div>
+            ` : `${emoji}`}
+          </div>
           <div class="book-detail-info">
             <span class="badge ${conditionClass}" style="margin-bottom: 0.75rem;">${book.condition}</span>
             <h1>${book.title}</h1>

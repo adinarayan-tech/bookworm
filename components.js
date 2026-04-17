@@ -9,12 +9,20 @@ const Components = {
     const emoji = Utils.getBookEmoji(book.genre);
     const conditionClass = Utils.getConditionBadgeClass(book.condition);
     const savings = Utils.calcSavings(book.originalPrice, book.studentPrice);
+    const coverUrl = Utils.getBookCover(book.isbn);
 
     return `
       <div class="book-card" onclick="Router.navigate('book?id=${book.id}')"
            style="animation: fadeInUp 0.4s ease-out ${index * 0.06}s both;">
         <div class="book-card-image">
-          <span class="book-cover-emoji">${emoji}</span>
+          ${coverUrl ? `
+            <img src="${coverUrl}" alt="${book.title}" class="book-cover-img"
+                 onload="if(this.naturalWidth<=1){this.style.display='none';this.nextElementSibling.style.display='flex';}"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+            <span class="book-cover-emoji book-cover-fallback">${emoji}</span>
+          ` : `
+            <span class="book-cover-emoji">${emoji}</span>
+          `}
           <div class="book-card-condition">
             <span class="badge ${conditionClass}">${book.condition}</span>
           </div>
