@@ -1,6 +1,7 @@
 /* ============================================
    BookWorm — SPA Router
    Hash-based routing (no server required)
+   Async-aware for Supabase data fetching
    ============================================ */
 
 const Router = {
@@ -8,7 +9,7 @@ const Router = {
   _current: '',
 
   init() {
-    // Register routes
+    // Register routes (all return promises now)
     this._routes = {
       '': () => Pages.home(),
       'catalog': () => Pages.catalog(),
@@ -29,7 +30,7 @@ const Router = {
     window.location.hash = '#/' + path;
   },
 
-  _handleRoute() {
+  async _handleRoute() {
     const hash = window.location.hash.slice(2) || ''; // remove #/
     const [path, queryStr] = hash.split('?');
     const params = {};
@@ -67,7 +68,8 @@ const Router = {
       this._current = path;
       pageContent.innerHTML = '';
       pageContent.className = 'page-content page-enter';
-      this._routes[routeKey](params);
+      // Await the async page renderer
+      await this._routes[routeKey](params);
       this._updateNavbar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {

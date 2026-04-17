@@ -1,17 +1,21 @@
 /* ============================================
-   BookWorm — Page Renderers
-   All page views for the SPA
+   BookWorm — Page Renderers (Supabase Edition)
+   All page views for the SPA — async data loading
    ============================================ */
 
 const Pages = {
 
   // ── HOME PAGE ──
-  home() {
-    const books = DB.searchBooks('', { sort: 'newest' });
-    const stats = DB.getStats();
+  async home() {
+    const page = document.getElementById('page-content');
+    Utils.showLoader(page);
+
+    const [books, stats] = await Promise.all([
+      DB.searchBooks('', { sort: 'newest' }),
+      DB.getStats()
+    ]);
     const featured = books.slice(0, 6);
 
-    const page = document.getElementById('page-content');
     page.innerHTML = `
       <!-- Hero -->
       <section class="hero">
@@ -102,7 +106,6 @@ const Pages = {
         Router.navigate('catalog?q=' + encodeURIComponent(searchInput.value.trim()));
       }
     });
-    // Also navigate on input after debounce
     searchInput.addEventListener('input', Utils.debounce((e) => {
       if (searchInput.value.trim().length >= 2) {
         Router.navigate('catalog?q=' + encodeURIComponent(searchInput.value.trim()));
@@ -111,10 +114,13 @@ const Pages = {
   },
 
   // ── CATALOG PAGE ──
-  catalog(initialQuery) {
+  async catalog(initialQuery) {
     const page = document.getElementById('page-content');
     const urlParams = new URLSearchParams(window.location.hash.split('?')[1] || '');
     const query = initialQuery || urlParams.get('q') || '';
+
+    // Fetch genres for the filter dropdown
+    const genres = await DB.getGenres();
 
     page.innerHTML = `
       <div class="container section">
@@ -140,7 +146,7 @@ const Pages = {
           </select>
           <select id="filter-genre">
             <option value="all">All Genres</option>
-            ${DB.getGenres().map(g => `<option value="${g}">${g}</option>`).join('')}
+            ${genres.map(g => `<option value="${g}">${g}</option>`).join('')}
           </select>
           <select id="filter-sort">
             <option value="newest">Newest First</option>
@@ -163,14 +169,14 @@ const Pages = {
     const emptyEl = document.getElementById('catalog-empty');
     const countEl = document.getElementById('catalog-count');
 
-    function render() {
+    async function render() {
       const filters = {
         condition: conditionFilter.value,
         genre: genreFilter.value,
         sort: sortFilter.value,
         inStock: false
       };
-      const books = DB.searchBooks(searchInput.value, filters);
+      const books = await DB.searchBooks(searchInput.value, filters);
 
       countEl.textContent = `${books.length} book${books.length !== 1 ? 's' : ''} found`;
 
@@ -190,20 +196,22 @@ const Pages = {
       }
     }
 
-    const debouncedRender = Utils.debounce(render, 300);
+    const debouncedRender = Utils.debounce(() => render(), 300);
     searchInput.addEventListener('input', debouncedRender);
-    conditionFilter.addEventListener('change', render);
-    genreFilter.addEventListener('change', render);
-    sortFilter.addEventListener('change', render);
+    conditionFilter.addEventListener('change', () => render());
+    genreFilter.addEventListener('change', () => render());
+    sortFilter.addEventListener('change', () => render());
 
-    render();
+    await render();
     if (query) searchInput.focus();
   },
 
   // ── BOOK DETAIL PAGE ──
-  bookDetail(bookId) {
+  async bookDetail(bookId) {
     const page = document.getElementById('page-content');
-    const book = DB.getBookById(bookId);
+    Utils.showLoader(page);
+
+    const book = await DB.getBookById(bookId);
 
     if (!book) {
       page.innerHTML = `
@@ -278,7 +286,7 @@ const Pages = {
     `;
 
     // Related books
-    const relatedBooks = DB.searchBooks('', { genre: book.genre })
+    const relatedBooks = (await DB.searchBooks('', { genre: book.genre }))
       .filter(b => b.id !== book.id)
       .slice(0, 4);
     const relatedContainer = document.getElementById('related-books');
@@ -303,13 +311,13 @@ const Pages = {
     if (el) el.textContent = this._detailQty;
   },
 
-  _detailAddToCart(bookId) {
+  async _detailAddToCart(bookId) {
     if (!Auth.isLoggedIn) {
       Toast.info('Please sign in to add items to your cart.');
       Router.navigate('login');
       return;
     }
-    const book = DB.getBookById(bookId);
+    const book = await DB.getBookById(bookId);
     if (!book) return;
     Cart.addItem(book, this._detailQty);
     Toast.success(`"${book.title}" added to cart!`);
@@ -317,10 +325,11 @@ const Pages = {
   },
 
   // ── CART & CHECKOUT PAGE ──
-  cart() {
+  async cart() {
     const page = document.getElementById('page-content');
-    const issues = Cart.validate();
+    Utils.showLoader(page);
 
+    const issues = await Cart.validate();
     if (issues.length) {
       issues.forEach(msg => Toast.info(msg));
     }
@@ -493,7 +502,7 @@ const Pages = {
     this.cart(); // re-render
   },
 
-  _placeOrder() {
+  async _placeOrder() {
     const items = Cart.items;
     if (items.length === 0) return;
 
@@ -519,7 +528,7 @@ const Pages = {
       }
 
       const shippingCost = Cart.total >= 500 ? 0 : 49;
-      const result = DB.createOrder({
+      const result = await DB.createOrder({
         userId: Auth.user.id,
         fulfillmentType: 'delivery',
         items: items.map(i => ({ bookId: i.bookId, quantity: i.quantity, priceAtPurchase: i.price })),
@@ -547,7 +556,7 @@ const Pages = {
         return;
       }
 
-      const result = DB.createOrder({
+      const result = await DB.createOrder({
         userId: Auth.user.id,
         fulfillmentType: 'collect',
         items: items.map(i => ({ bookId: i.bookId, quantity: i.quantity, priceAtPurchase: i.price })),
@@ -566,9 +575,11 @@ const Pages = {
   },
 
   // ── MY ORDERS PAGE ──
-  orders() {
+  async orders() {
     const page = document.getElementById('page-content');
-    const orders = DB.getOrders(Auth.user?.id).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    Utils.showLoader(page);
+
+    const orders = await DB.getOrders(Auth.user?.id);
 
     page.innerHTML = `
       <div class="container section">
@@ -592,8 +603,12 @@ const Pages = {
         ` : ''}
 
         <div id="orders-list">
-          ${orders.map(order => {
+          ${await Promise.all(orders.map(async order => {
             const statusClass = Utils.getStatusBadgeClass(order.status);
+            const itemDetails = await Promise.all(order.items.map(async item => {
+              const book = await DB.getBookById(item.bookId);
+              return `<li>📕 ${book ? book.title : 'Unknown Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
+            }));
             return `
               <div class="order-card">
                 <div class="order-card-header">
@@ -609,10 +624,7 @@ const Pages = {
                   </div>
                 </div>
                 <ul class="order-items-list">
-                  ${order.items.map(item => {
-                    const book = DB.getBookById(item.bookId);
-                    return `<li>📕 ${book ? book.title : 'Unknown Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
-                  }).join('')}
+                  ${itemDetails.join('')}
                 </ul>
                 <div class="order-card-footer">
                   <span class="order-total">Total: ${Utils.formatPrice(order.totalAmount)}</span>
@@ -625,7 +637,7 @@ const Pages = {
                 </div>
               </div>
             `;
-          }).join('')}
+          })).then(cards => cards.join(''))}
         </div>
       </div>
     `;
@@ -670,7 +682,7 @@ const Pages = {
           </button>
 
           <p class="text-xs text-muted text-center mt-1">
-            No password needed — this is a demo app.
+            Use admin@bookworm.com for admin access.
           </p>
         </div>
       </div>
@@ -685,7 +697,7 @@ const Pages = {
     document.getElementById('role-admin').classList.toggle('selected', role === 'admin');
   },
 
-  _handleLogin() {
+  async _handleLogin() {
     const name = document.getElementById('login-name')?.value.trim();
     const email = document.getElementById('login-email')?.value.trim();
 
@@ -698,18 +710,30 @@ const Pages = {
       return;
     }
 
-    Auth.login(name, email, this._selectedRole);
-    Toast.success(`Welcome, ${name}! Signed in as ${this._selectedRole}.`);
-    Router.navigate(this._selectedRole === 'admin' ? 'admin' : 'catalog');
+    Toast.info('Signing in...');
+    const user = await Auth.login(name, email, this._selectedRole);
+    if (!user) {
+      Toast.error('Login failed. Please try again.');
+      return;
+    }
+
+    Toast.success(`Welcome, ${user.name}! Signed in as ${user.role}.`);
+    Router.navigate(user.role === 'admin' ? 'admin' : 'catalog');
     Router._updateNavbar();
   },
 
   // ── ADMIN DASHBOARD ──
-  adminDashboard() {
+  async adminDashboard() {
     const page = document.getElementById('page-content');
-    const stats = DB.getStats();
-    const recentOrders = DB.getOrders().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5);
-    const lowStockBooks = DB.getBooks().filter(b => b.quantity > 0 && b.quantity <= 2);
+    Utils.showLoader(page);
+
+    const [stats, allOrders, allBooks] = await Promise.all([
+      DB.getStats(),
+      DB.getOrders(),
+      DB.getBooks()
+    ]);
+    const recentOrders = allOrders.slice(0, 5);
+    const lowStockBooks = allBooks.filter(b => b.quantity > 0 && b.quantity <= 2);
 
     page.innerHTML = `
       <div class="admin-layout">
@@ -813,9 +837,11 @@ const Pages = {
   },
 
   // ── ADMIN: INVENTORY MANAGEMENT ──
-  adminInventory() {
+  async adminInventory() {
     const page = document.getElementById('page-content');
-    let books = DB.getBooks();
+    Utils.showLoader(page);
+
+    let books = await DB.getBooks();
 
     const renderInventory = (filteredBooks) => {
       const content = document.getElementById('admin-inventory-content');
@@ -910,16 +936,16 @@ const Pages = {
     this._showBookModal(null);
   },
 
-  _editBook(bookId) {
-    const book = DB.getBookById(bookId);
+  async _editBook(bookId) {
+    const book = await DB.getBookById(bookId);
     if (book) this._showBookModal(book);
   },
 
-  _deleteBook(bookId) {
-    const book = DB.getBookById(bookId);
+  async _deleteBook(bookId) {
+    const book = await DB.getBookById(bookId);
     if (!book) return;
     if (confirm(`Delete "${book.title}"? This cannot be undone.`)) {
-      DB.deleteBook(bookId);
+      await DB.deleteBook(bookId);
       Toast.success('Book deleted.');
       this.adminInventory();
     }
@@ -1001,7 +1027,7 @@ const Pages = {
 
     document.body.appendChild(overlay);
 
-    document.getElementById('modal-save-btn').addEventListener('click', () => {
+    document.getElementById('modal-save-btn').addEventListener('click', async () => {
       const title = document.getElementById('modal-title').value.trim();
       const author = document.getElementById('modal-author').value.trim();
       const isbn = document.getElementById('modal-isbn').value.trim();
@@ -1020,10 +1046,10 @@ const Pages = {
       const data = { title, author, isbn, condition, genre, studentPrice, originalPrice, quantity, description };
 
       if (isEdit) {
-        DB.updateBook(book.id, data);
+        await DB.updateBook(book.id, data);
         Toast.success('Book updated successfully!');
       } else {
-        DB.addBook(data);
+        await DB.addBook(data);
         Toast.success('Book added to inventory!');
       }
 
@@ -1033,9 +1059,12 @@ const Pages = {
   },
 
   // ── ADMIN: ORDER MANAGEMENT ──
-  adminOrders() {
+  async adminOrders() {
     const page = document.getElementById('page-content');
-    const allOrders = DB.getOrders().sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    Utils.showLoader(page);
+
+    const allOrders = await DB.getOrders();
+    const allUsers = await DB.getUsers();
 
     Pages._adminOrderFilter = Pages._adminOrderFilter || 'all';
 
@@ -1051,6 +1080,14 @@ const Pages = {
       collected: allOrders.filter(o => o.status === 'collected').length,
       cancelled: allOrders.filter(o => o.status === 'cancelled').length
     };
+
+    // Pre-fetch book titles for all order items
+    const allBookIds = [...new Set(filteredOrders.flatMap(o => o.items.map(i => i.bookId)))];
+    const bookMap = {};
+    for (const bid of allBookIds) {
+      const bk = await DB.getBookById(bid);
+      bookMap[bid] = bk;
+    }
 
     page.innerHTML = `
       <div class="admin-layout">
@@ -1077,7 +1114,7 @@ const Pages = {
 
           <div>
             ${filteredOrders.map(order => {
-              const user = DB.getUserById(order.userId);
+              const user = allUsers.find(u => u.id === order.userId);
               const statusClass = Utils.getStatusBadgeClass(order.status);
               const nextStatuses = Pages._getNextStatuses(order);
 
@@ -1097,7 +1134,7 @@ const Pages = {
 
                   <ul class="order-items-list">
                     ${order.items.map(item => {
-                      const bk = DB.getBookById(item.bookId);
+                      const bk = bookMap[item.bookId];
                       return `<li>📕 ${bk ? bk.title : 'Deleted Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
                     }).join('')}
                   </ul>
@@ -1147,11 +1184,11 @@ const Pages = {
     return actions;
   },
 
-  _updateOrderStatus(orderId, status) {
+  async _updateOrderStatus(orderId, status) {
     const labels = { confirmed: 'confirmed', shipped: 'shipped', collected: 'collected', cancelled: 'cancelled' };
     if (status === 'cancelled' && !confirm('Cancel this order? Stock will be restored.')) return;
 
-    DB.updateOrderStatus(orderId, status);
+    await DB.updateOrderStatus(orderId, status);
     Toast.success(`Order marked as ${labels[status]}.`);
     this.adminOrders();
   }
