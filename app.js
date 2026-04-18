@@ -401,7 +401,7 @@ const Auth = {
         redirectTo: window.location.origin + window.location.pathname
       }
     });
-    if (error) { console.error('google login:', error); throw error; }
+    if (error) { console.error('Google sign-in:', error); throw error; }
   },
 
   async logout() {
