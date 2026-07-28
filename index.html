@@ -31,8 +31,10 @@
         <div class="nav-links" id="nav-links">
           <a class="nav-link" data-route="" onclick="Router.navigate(''); event.preventDefault();" href="#/">Home</a>
           <a class="nav-link" data-route="catalog" onclick="Router.navigate('catalog'); event.preventDefault();" href="#/catalog">Catalog</a>
+          <a class="nav-link" data-route="sell" id="nav-sell-link" onclick="if(!Auth.isLoggedIn){Router.navigate('login')}else{Router.navigate('sell')}; event.preventDefault();" href="#/sell" style="display:none;">Sell a Book</a>
+          <a class="nav-link" data-route="wishlist" id="nav-wishlist-link" onclick="if(!Auth.isLoggedIn){Router.navigate('login')}else{Router.navigate('wishlist')}; event.preventDefault();" href="#/wishlist" style="display:none;">Wishlist</a>
           <a class="nav-link" data-route="orders" onclick="if(!Auth.isLoggedIn){Router.navigate('login')}else{Router.navigate('orders')}; event.preventDefault();" href="#/orders">My Orders</a>
-          <a class="nav-link" data-route="admin" onclick="if(!Auth.isAdmin){Router.navigate('login')}else{Router.navigate('admin')}; event.preventDefault();" href="#/admin" id="nav-admin-link">Admin</a>
+          <a class="nav-link" data-route="admin" onclick="if(!Auth.isAdmin){Router.navigate('login')}else{Router.navigate('admin')}; event.preventDefault();" href="#/admin" id="nav-admin-link" style="display:none;">Admin</a>
         </div>
 
         <div class="nav-actions">

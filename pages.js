@@ -280,10 +280,17 @@ const Pages = {
               ` : `
                 <button class="btn btn-secondary btn-lg" disabled>Out of Stock</button>
               `}
+              <button class="btn btn-secondary btn-icon btn-lg" id="detail-wishlist-btn"
+                onclick="Pages._toggleWishlistDetail('${book.id}')" title="Add to Wishlist">❤️</button>
               <button class="btn btn-secondary" onclick="Router.navigate('catalog')">Continue Shopping</button>
             </div>
           </div>
         </div>
+
+        <!-- Reviews Section -->
+        <section class="section">
+          <div id="reviews-section"></div>
+        </section>
 
         <!-- Related Books -->
         <section class="section">
@@ -303,6 +310,19 @@ const Pages = {
     } else {
       relatedContainer.parentElement.style.display = 'none';
     }
+
+    // Reviews section
+    const [reviews, avgRating] = await Promise.all([
+      DB.getReviews(book.id),
+      DB.getAverageRating(book.id)
+    ]);
+    const reviewsSection = document.getElementById('reviews-section');
+    if (reviewsSection) {
+      reviewsSection.innerHTML = Pages._renderReviews(book.id, reviews, avgRating);
+    }
+
+    // Wishlist heart button state
+    Pages._updateWishlistBtn(book.id);
 
     // Store book ref for qty control
     this._detailBook = book;
@@ -330,6 +350,143 @@ const Pages = {
     Cart.addItem(book, this._detailQty);
     Toast.success(`"${book.title}" added to cart!`);
     Router._updateNavbar();
+  },
+
+  // Wishlist toggle on book detail
+  async _toggleWishlistDetail(bookId) {
+    if (!Auth.isLoggedIn) {
+      Toast.info('Sign in to save books to your wishlist.');
+      Router.navigate('login');
+      return;
+    }
+    const book = await DB.getBookById(bookId);
+    if (!book) return;
+    const added = Wishlist.toggle(book);
+    Toast[added ? 'success' : 'info'](added ? `"${book.title}" added to wishlist ❤️` : `Removed from wishlist`);
+    Pages._updateWishlistBtn(bookId);
+  },
+
+  _updateWishlistBtn(bookId) {
+    const btn = document.getElementById('detail-wishlist-btn');
+    if (!btn) return;
+    const inWishlist = Wishlist.has(bookId);
+    btn.style.color = inWishlist ? 'var(--rose-400)' : '';
+    btn.style.borderColor = inWishlist ? 'var(--rose-400)' : '';
+    btn.title = inWishlist ? 'Remove from Wishlist' : 'Add to Wishlist';
+  },
+
+  // Render reviews section
+  _renderReviews(bookId, reviews, avgRating) {
+    const stars = (rating) => Array.from({length: 5}, (_, i) =>
+      `<span style="color: ${i < rating ? 'var(--amber-400)' : 'var(--slate-600)'}; font-size: 1rem;">★</span>`
+    ).join('');
+
+    const canReview = Auth.isLoggedIn && !Auth.isAdmin;
+    const hasReviewed = reviews.some(r => r.userId === Auth.user?.id);
+
+    return `
+      <h2 class="section-title font-display mb-1">
+        Reviews ${avgRating ? `<span style="font-size: 1rem; color: var(--amber-400); font-family: var(--font-sans);">★ ${avgRating} (${reviews.length})</span>` : ''}
+      </h2>
+
+      ${canReview && !hasReviewed ? `
+        <div class="card mb-2" id="review-form-card">
+          <h3 class="card-title mb-1">Write a Review</h3>
+          <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;" id="review-stars-input">
+            ${[1,2,3,4,5].map(n => `
+              <span style="font-size: 1.75rem; cursor: pointer; color: var(--slate-600);" 
+                    onmouseover="Pages._hoverStars(${n})"
+                    onmouseout="Pages._hoverStars(0)"
+                    onclick="Pages._setReviewRating(${n})">★</span>
+            `).join('')}
+          </div>
+          <input type="hidden" id="review-rating-val" value="0" />
+          <div class="form-group">
+            <textarea class="form-textarea" id="review-comment" rows="3" placeholder="Share your thoughts about this book..."></textarea>
+          </div>
+          <button class="btn btn-primary" id="review-submit-btn" onclick="Pages._submitReview('${bookId}')">
+            Submit Review
+          </button>
+        </div>
+      ` : canReview && hasReviewed ? `
+        <div class="card mb-2" style="border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.04);">
+          <p class="text-sm text-emerald">${Icons.checkCircle} You've already reviewed this book.</p>
+        </div>
+      ` : !Auth.isLoggedIn ? `
+        <div class="card mb-2" style="text-align: center;">
+          <p class="text-secondary text-sm mb-1">Sign in to write a review.</p>
+          <button class="btn btn-secondary btn-sm" onclick="Router.navigate('login')">Sign In</button>
+        </div>
+      ` : ''}
+
+      ${reviews.length === 0 ? `
+        <div class="empty-state" style="padding: 2rem 0;">
+          <div class="empty-state-icon">💬</div>
+          <p class="empty-state-desc">No reviews yet. Be the first to review!</p>
+        </div>
+      ` : `
+        <div style="display: flex; flex-direction: column; gap: 1rem;">
+          ${reviews.map(r => `
+            <div class="card">
+              <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                  <div class="nav-user-avatar" style="width: 32px; height: 32px; font-size: 0.7rem;">
+                    ${r.userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)}
+                  </div>
+                  <div>
+                    <div class="text-sm font-medium">${r.userName}</div>
+                    <div class="text-xs text-muted">${Utils.formatDate(r.createdAt)}</div>
+                  </div>
+                </div>
+                <div>${stars(r.rating)}</div>
+              </div>
+              ${r.comment ? `<p class="text-sm text-secondary">${r.comment}</p>` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `}
+    `;
+  },
+
+  _reviewRating: 0,
+  _hoverStars(n) {
+    const spans = document.querySelectorAll('#review-stars-input span');
+    spans.forEach((s, i) => {
+      s.style.color = i < (n || this._reviewRating) ? 'var(--amber-400)' : 'var(--slate-600)';
+    });
+  },
+  _setReviewRating(n) {
+    this._reviewRating = n;
+    const input = document.getElementById('review-rating-val');
+    if (input) input.value = n;
+    this._hoverStars(0);
+  },
+
+  async _submitReview(bookId) {
+    const rating = parseInt(document.getElementById('review-rating-val')?.value || 0);
+    const comment = document.getElementById('review-comment')?.value.trim();
+
+    if (!rating || rating < 1 || rating > 5) {
+      Toast.error('Please select a star rating.');
+      return;
+    }
+
+    const btn = document.getElementById('review-submit-btn');
+    btn.disabled = true; btn.textContent = 'Submitting...';
+
+    const result = await DB.addReview(bookId, Auth.user.id, rating, comment);
+    if (!result) {
+      Toast.error('Could not submit review. You may have already reviewed this book.');
+      btn.disabled = false; btn.textContent = 'Submit Review';
+      return;
+    }
+
+    Toast.success('Review submitted! Thank you.');
+    // Refresh reviews section
+    const [reviews, avgRating] = await Promise.all([DB.getReviews(bookId), DB.getAverageRating(bookId)]);
+    const reviewsSection = document.getElementById('reviews-section');
+    if (reviewsSection) reviewsSection.innerHTML = Pages._renderReviews(bookId, reviews, avgRating);
+    this._reviewRating = 0;
   },
 
   // ── CART & CHECKOUT PAGE ──
@@ -1275,5 +1432,698 @@ const Pages = {
     await DB.updateOrderStatus(orderId, status);
     Toast.success(`Order marked as ${labels[status]}.`);
     this.adminOrders();
+  },
+
+  // ── USER PROFILE PAGE ──
+  async profile() {
+    const page = document.getElementById('page-content');
+    Utils.showLoader(page);
+
+    const user = Auth.user;
+    const orders = await DB.getOrders(user.id);
+    const wishlistCount = Wishlist.count;
+
+    const orderStats = {
+      total: orders.length,
+      pending: orders.filter(o => o.status === 'pending').length,
+      completed: orders.filter(o => ['shipped', 'collected'].includes(o.status)).length,
+    };
+
+    page.innerHTML = `
+      <div class="container section">
+        <div class="back-btn" onclick="Router.navigate('')">${Icons.chevronLeft} Back to Home</div>
+        <h1 class="section-title font-display mb-2">My Profile</h1>
+
+        <div class="checkout-grid" style="grid-template-columns: 1fr 1.6fr;">
+          <!-- Profile Card -->
+          <div>
+            <div class="card text-center" style="padding: 2rem;">
+              <div class="nav-user-avatar" style="width: 72px; height: 72px; font-size: 1.75rem; margin: 0 auto 1rem;">
+                ${user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+              </div>
+              <h2 style="font-size: 1.25rem; margin-bottom: 0.25rem;">${user.name}</h2>
+              <p class="text-secondary text-sm">${user.email}</p>
+              <span class="badge badge-new" style="margin-top: 0.75rem;">${user.role === 'admin' ? '🔧 Admin' : '🎓 Student'}</span>
+            </div>
+
+            <div class="card mt-2">
+              <h3 class="card-title mb-1">Quick Stats</h3>
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <div style="display:flex; justify-content:space-between;">
+                  <span class="text-secondary text-sm">Total Orders</span>
+                  <span class="font-semibold">${orderStats.total}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span class="text-secondary text-sm">Pending</span>
+                  <span class="font-semibold text-amber">${orderStats.pending}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span class="text-secondary text-sm">Completed</span>
+                  <span class="font-semibold text-emerald">${orderStats.completed}</span>
+                </div>
+                <div style="display:flex; justify-content:space-between;">
+                  <span class="text-secondary text-sm">Wishlist Items</span>
+                  <span class="font-semibold">❤️ ${wishlistCount}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Edit Profile -->
+          <div>
+            <div class="card">
+              <h3 class="card-title mb-2">Edit Profile</h3>
+              <div class="form-group">
+                <label class="form-label">Full Name</label>
+                <input type="text" class="form-input" id="profile-name" value="${user.name}" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" class="form-input" id="profile-email" value="${user.email}" disabled style="opacity: 0.5; cursor: not-allowed;" />
+                <p class="text-xs text-muted mt-1">Email cannot be changed here.</p>
+              </div>
+              <button class="btn btn-primary" id="profile-save-btn" onclick="Pages._saveProfile()">
+                Save Changes
+              </button>
+            </div>
+
+            <div class="card mt-2">
+              <h3 class="card-title mb-1">Quick Actions</h3>
+              <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                <button class="btn btn-secondary w-full" onclick="Router.navigate('orders')">${Icons.package} View All Orders</button>
+                <button class="btn btn-secondary w-full" onclick="Router.navigate('wishlist')">❤️ My Wishlist (${wishlistCount})</button>
+                ${!Auth.isAdmin ? `<button class="btn btn-secondary w-full" onclick="Router.navigate('sell')">${Icons.plus} Sell a Book</button>` : ''}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  async _saveProfile() {
+    const name = document.getElementById('profile-name')?.value.trim();
+    if (!name) { Toast.error('Name cannot be empty.'); return; }
+
+    const btn = document.getElementById('profile-save-btn');
+    btn.disabled = true; btn.textContent = 'Saving...';
+
+    const { error } = await supabaseClient
+      .from('users').update({ name }).eq('id', Auth.user.id);
+
+    if (error) {
+      Toast.error('Could not save profile. Please try again.');
+    } else {
+      Auth._current.name = name;
+      Router._updateNavbar();
+      Toast.success('Profile updated!');
+    }
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  },
+
+  // ── SELL A BOOK PAGE ──
+  async sell() {
+    const page = document.getElementById('page-content');
+    const genres = await DB.getGenres();
+
+    page.innerHTML = `
+      <div class="container section">
+        <div class="back-btn" onclick="Router.navigate('catalog')">${Icons.chevronLeft} Back to Catalog</div>
+        <div style="max-width: 680px; margin: 0 auto;">
+          <div style="text-align: center; margin-bottom: 2rem;">
+            <div style="font-size: 3rem; margin-bottom: 0.75rem;">📚</div>
+            <h1 class="section-title font-display">Sell Your Book</h1>
+            <p class="section-subtitle">List your used textbook and help fellow students save money.</p>
+          </div>
+
+          <div class="card">
+            <h3 class="card-title mb-2">Book Details</h3>
+
+            <div class="form-group">
+              <label class="form-label">Book Title *</label>
+              <input type="text" class="form-input" id="sell-title" placeholder="e.g. Introduction to Algorithms" />
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Author *</label>
+                <input type="text" class="form-input" id="sell-author" placeholder="Author name" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">ISBN</label>
+                <input type="text" class="form-input" id="sell-isbn" placeholder="978-XXXXXXXXXX" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Condition *</label>
+                <select class="form-select" id="sell-condition">
+                  <option value="">Select condition</option>
+                  <option value="Like New">Like New</option>
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Worn">Worn</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Genre</label>
+                <select class="form-select" id="sell-genre">
+                  <option value="">Select genre</option>
+                  ${['Computer Science','Mathematics','Physics','Engineering','Chemistry','Biology','Psychology','Economics','Literature','History','Art','Philosophy','Business','Music','Other'].map(g =>
+                    `<option value="${g}">${g}</option>`
+                  ).join('')}
+                </select>
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Your Asking Price (₹) *</label>
+                <input type="number" class="form-input" id="sell-price" placeholder="e.g. 250" min="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Original MRP (₹)</label>
+                <input type="number" class="form-input" id="sell-original" placeholder="e.g. 1200" min="0" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label">Number of Copies *</label>
+                <input type="number" class="form-input" id="sell-qty" placeholder="1" min="1" value="1" />
+              </div>
+              <div class="form-group">
+                <label class="form-label">Cover Photo (Optional)</label>
+                <input type="file" class="form-input" id="sell-image" accept="image/*" style="padding: 0.5rem 1rem;" />
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Description / Condition Notes</label>
+              <textarea class="form-textarea" id="sell-description" rows="3" placeholder="Any highlights, damage, missing pages, etc."></textarea>
+            </div>
+
+            <div class="card" style="background: rgba(245,158,11,0.05); border-color: rgba(245,158,11,0.15); margin-top: 1rem;">
+              <p class="text-sm" style="display: flex; align-items: flex-start; gap: 0.5rem; color: var(--amber-400);">
+                ${Icons.alertTriangle}
+                <span>Your listing will be visible in the catalog immediately after submission. Our team may verify and update the details if needed.</span>
+              </p>
+            </div>
+
+            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+              <button class="btn btn-secondary" onclick="Router.navigate('catalog')">Cancel</button>
+              <button class="btn btn-primary flex-1" id="sell-submit-btn" onclick="Pages._submitSellBook()">
+                ${Icons.plus} List My Book
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  async _submitSellBook() {
+    const title = document.getElementById('sell-title')?.value.trim();
+    const author = document.getElementById('sell-author')?.value.trim();
+    const isbn = document.getElementById('sell-isbn')?.value.trim();
+    const condition = document.getElementById('sell-condition')?.value;
+    const genre = document.getElementById('sell-genre')?.value;
+    const studentPrice = parseFloat(document.getElementById('sell-price')?.value);
+    const originalPrice = parseFloat(document.getElementById('sell-original')?.value) || null;
+    const quantity = parseInt(document.getElementById('sell-qty')?.value) || 1;
+    const description = document.getElementById('sell-description')?.value.trim();
+
+    if (!title || !author || !condition || isNaN(studentPrice) || studentPrice <= 0) {
+      Toast.error('Please fill in all required fields with valid values.');
+      return;
+    }
+
+    const btn = document.getElementById('sell-submit-btn');
+    btn.disabled = true; btn.textContent = 'Submitting...';
+
+    let imageUrl = null;
+    const imageFile = document.getElementById('sell-image')?.files[0];
+    if (imageFile) {
+      btn.textContent = 'Uploading image...';
+      imageUrl = await DB.uploadImage(imageFile);
+      if (!imageUrl) Toast.info('Image upload failed — listing without photo.');
+    }
+
+    const result = await DB.addBook({
+      title, author, isbn, condition, genre,
+      studentPrice, originalPrice, quantity, description,
+      imageUrl, sellerId: Auth.user.id
+    });
+
+    if (!result) {
+      Toast.error('Failed to list book. Please try again.');
+      btn.disabled = false; btn.textContent = '📚 List My Book';
+      return;
+    }
+
+    Toast.success('🎉 Your book is now listed! Students can find it in the catalog.');
+    Router.navigate('catalog');
+  },
+
+  // ── WISHLIST PAGE ──
+  async wishlist() {
+    const page = document.getElementById('page-content');
+    const items = Wishlist.items;
+
+    page.innerHTML = `
+      <div class="container section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title font-display">My Wishlist</h1>
+            <p class="section-subtitle">${items.length} saved book${items.length !== 1 ? 's' : ''}</p>
+          </div>
+          ${items.length > 0 ? `
+            <button class="btn btn-ghost btn-sm text-rose" onclick="Pages._clearWishlist()">
+              ${Icons.trash} Clear All
+            </button>
+          ` : ''}
+        </div>
+
+        ${items.length === 0 ? `
+          <div class="empty-state">
+            <div class="empty-state-icon">❤️</div>
+            <h3 class="empty-state-title">Your wishlist is empty</h3>
+            <p class="empty-state-desc">Tap the ❤️ heart on any book to save it for later.</p>
+            <button class="btn btn-primary" onclick="Router.navigate('catalog')">Browse Catalog</button>
+          </div>
+        ` : `
+          <div class="book-grid">
+            ${items.map((book, i) => `
+              <div class="book-card" style="animation: fadeInUp 0.4s ease-out ${i * 0.06}s both; position: relative;">
+                <button class="wishlist-remove-btn" onclick="Pages._removeFromWishlist('${book.id}')" title="Remove from wishlist">❤️</button>
+                <div class="book-card-image" onclick="Router.navigate('book?id=${book.id}')">
+                  ${(book.imageUrl || Utils.getBookCover(book.isbn)) ? `
+                    <img src="${book.imageUrl || Utils.getBookCover(book.isbn)}" alt="${book.title}" class="book-cover-img"
+                         onerror="this.style.display='none';this.nextElementSibling.style.display='flex';" />
+                    <span class="book-cover-emoji book-cover-fallback">${Utils.getBookEmoji(book.genre)}</span>
+                  ` : `<span class="book-cover-emoji">${Utils.getBookEmoji(book.genre)}</span>`}
+                  <div class="book-card-condition">
+                    <span class="badge ${Utils.getConditionBadgeClass(book.condition)}">${book.condition}</span>
+                  </div>
+                </div>
+                <div class="book-card-body">
+                  <div class="book-card-title" onclick="Router.navigate('book?id=${book.id}')" style="cursor:pointer;">${book.title}</div>
+                  <div class="book-card-author">by ${book.author}</div>
+                  <div class="book-card-footer">
+                    <div class="book-price">
+                      <span class="book-price-current">${Utils.formatPrice(book.studentPrice)}</span>
+                      ${book.originalPrice ? `<span class="book-price-original">${Utils.formatPrice(book.originalPrice)}</span>` : ''}
+                    </div>
+                  </div>
+                  <button class="btn btn-primary w-full btn-sm" style="margin-top: 0.75rem;"
+                    onclick="Pages._wishlistAddToCart('${book.id}')">
+                    ${Icons.cart} Add to Cart
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `}
+      </div>
+    `;
+  },
+
+  async _wishlistAddToCart(bookId) {
+    const book = await DB.getBookById(bookId);
+    if (!book) { Toast.error('Book not found.'); return; }
+    if (book.quantity === 0) { Toast.error('Sorry, this book is out of stock.'); return; }
+    Cart.addItem(book, 1);
+    Toast.success(`"${book.title}" added to cart!`);
+    Router._updateNavbar();
+  },
+
+  _removeFromWishlist(bookId) {
+    Wishlist.remove(bookId);
+    this.wishlist(); // re-render
+  },
+
+  _clearWishlist() {
+    if (confirm('Remove all books from wishlist?')) {
+      Wishlist.clear();
+      this.wishlist();
+    }
+  },
+
+  // ── SELLER DASHBOARD ──
+  async sellerDashboard() {
+    const page = document.getElementById('page-content');
+    Utils.showLoader(page);
+
+    const [myBooks, myOrders] = await Promise.all([
+      DB.getBooksBySeller(Auth.user.id),
+      DB.getOrders(Auth.user.id)
+    ]);
+
+    const totalRevenue = myOrders
+      .filter(o => !['cancelled'].includes(o.status))
+      .reduce((s, o) => s + Number(o.totalAmount), 0);
+
+    page.innerHTML = `
+      <div class="container section">
+        <div class="section-header">
+          <div>
+            <h1 class="section-title font-display">Seller Dashboard</h1>
+            <p class="section-subtitle">Manage your listed books</p>
+          </div>
+          <button class="btn btn-primary" onclick="Router.navigate('sell')">${Icons.plus} List a New Book</button>
+        </div>
+
+        <div class="stats-grid" style="margin-bottom: 2rem;">
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(245,158,11,0.12); color: var(--amber-400);">📚</div>
+            <div class="stat-card-value">${myBooks.length}</div>
+            <div class="stat-card-label">Books Listed</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(52,211,153,0.12); color: var(--emerald-400);">📦</div>
+            <div class="stat-card-value">${myOrders.length}</div>
+            <div class="stat-card-label">Total Orders</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-card-icon" style="background: rgba(167,139,250,0.12); color: var(--violet-400);">💰</div>
+            <div class="stat-card-value">${Utils.formatPrice(totalRevenue)}</div>
+            <div class="stat-card-label">Total Earnings</div>
+          </div>
+        </div>
+
+        ${myBooks.length === 0 ? `
+          <div class="empty-state">
+            <div class="empty-state-icon">📚</div>
+            <h3 class="empty-state-title">No listings yet</h3>
+            <p class="empty-state-desc">List your first book and start earning!</p>
+            <button class="btn btn-primary" onclick="Router.navigate('sell')">${Icons.plus} Sell a Book</button>
+          </div>
+        ` : `
+          <div class="card" style="padding: 0; overflow: hidden;">
+            <div class="card-header" style="padding: 1.25rem 1.5rem;">
+              <h3 class="card-title">My Listings</h3>
+            </div>
+            <div class="data-table-wrapper">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Book</th><th>Condition</th><th>Price</th><th>Stock</th><th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${myBooks.map(b => `
+                    <tr>
+                      <td>
+                        <div class="flex items-center gap-05">
+                          <span style="font-size: 1.25rem;">${Utils.getBookEmoji(b.genre)}</span>
+                          <div>
+                            <div class="text-sm font-medium">${b.title.length > 35 ? b.title.slice(0,35)+'…' : b.title}</div>
+                            <div class="text-xs text-muted">${b.author}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td><span class="badge ${Utils.getConditionBadgeClass(b.condition)}">${b.condition}</span></td>
+                      <td class="text-sm font-semibold text-emerald">${Utils.formatPrice(b.studentPrice)}</td>
+                      <td><span class="text-sm ${b.quantity === 0 ? 'text-rose' : b.quantity <= 2 ? 'text-amber' : ''}">${b.quantity}</span></td>
+                      <td>
+                        <div class="flex gap-05">
+                          <button class="btn btn-ghost btn-sm btn-icon" onclick="Pages._editBook('${b.id}')" title="Edit">${Icons.edit}</button>
+                          <button class="btn btn-ghost btn-sm btn-icon text-rose" onclick="Pages._deleteBook('${b.id}')" title="Delete">${Icons.trash}</button>
+                        </div>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        `}
+      </div>
+    `;
+  },
+
+  // ── ADMIN: MANAGE USERS ──
+  async adminUsers() {
+    const page = document.getElementById('page-content');
+    Utils.showLoader(page);
+
+    const users = await DB.getUsers();
+
+    const sidebarLinks = [
+      { key: 'dashboard', icon: Icons.dashboard, label: 'Dashboard', route: 'admin' },
+      { key: 'inventory', icon: Icons.book, label: 'Inventory', route: 'admin/inventory' },
+      { key: 'orders', icon: Icons.package, label: 'Orders', route: 'admin/orders' },
+      { key: 'users', icon: Icons.user, label: 'Users', route: 'admin/users' },
+      { key: 'reports', icon: Icons.dashboard, label: 'Reports', route: 'admin/reports' }
+    ];
+
+    page.innerHTML = `
+      <div class="admin-layout">
+        ${this._extAdminSidebar('users')}
+        <div class="admin-content">
+          <div class="section-header">
+            <div>
+              <h1 class="section-title font-display">Manage Users</h1>
+              <p class="section-subtitle">${users.length} registered users</p>
+            </div>
+          </div>
+
+          <div class="filter-bar">
+            <div class="search-input-wrap">
+              ${Icons.search}
+              <input type="text" id="user-search" placeholder="Search by name or email..." autocomplete="off" />
+            </div>
+          </div>
+
+          <div id="users-table-wrapper">
+            ${this._renderUsersTable(users)}
+          </div>
+        </div>
+      </div>
+    `;
+
+    const searchInput = document.getElementById('user-search');
+    searchInput.addEventListener('input', Utils.debounce(() => {
+      const q = searchInput.value.toLowerCase();
+      const filtered = users.filter(u =>
+        u.name?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q)
+      );
+      document.getElementById('users-table-wrapper').innerHTML = this._renderUsersTable(filtered);
+    }, 300));
+  },
+
+  _renderUsersTable(users) {
+    if (users.length === 0) return `<div class="empty-state"><div class="empty-state-icon">👤</div><h3 class="empty-state-title">No users found</h3></div>`;
+    return `
+      <div class="data-table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th></tr>
+          </thead>
+          <tbody>
+            ${users.map(u => `
+              <tr>
+                <td>
+                  <div class="flex items-center gap-05">
+                    <div class="nav-user-avatar" style="width:32px;height:32px;font-size:0.75rem;flex-shrink:0;">
+                      ${(u.name || 'U').split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)}
+                    </div>
+                    <span class="text-sm font-medium">${u.name || '—'}</span>
+                  </div>
+                </td>
+                <td class="text-sm text-secondary">${u.email || '—'}</td>
+                <td><span class="badge ${u.role === 'admin' ? 'badge-new' : 'badge-good'}">${u.role || 'student'}</span></td>
+                <td class="text-sm text-muted">${u.createdAt ? Utils.formatDate(u.createdAt) : '—'}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+  },
+
+  // ── ADMIN: REPORTS ──
+  async adminReports() {
+    const page = document.getElementById('page-content');
+    Utils.showLoader(page);
+
+    const [allOrders, allBooks, allUsers] = await Promise.all([
+      DB.getOrders(),
+      DB.getBooks(),
+      DB.getUsers()
+    ]);
+
+    // Revenue by status
+    const revenue = {
+      total: allOrders.filter(o => o.status !== 'cancelled').reduce((s,o) => s + Number(o.totalAmount), 0),
+      pending: allOrders.filter(o => o.status === 'pending').reduce((s,o) => s + Number(o.totalAmount), 0),
+      completed: allOrders.filter(o => ['shipped','collected'].includes(o.status)).reduce((s,o) => s + Number(o.totalAmount), 0),
+      cancelled: allOrders.filter(o => o.status === 'cancelled').reduce((s,o) => s + Number(o.totalAmount), 0)
+    };
+
+    // Genre breakdown
+    const genreCounts = {};
+    allBooks.forEach(b => { if (b.genre) genreCounts[b.genre] = (genreCounts[b.genre] || 0) + 1; });
+    const topGenres = Object.entries(genreCounts).sort((a,b) => b[1]-a[1]).slice(0, 8);
+    const maxGenre = topGenres[0]?.[1] || 1;
+
+    // Monthly orders (last 6 months)
+    const now = new Date();
+    const months = Array.from({length: 6}, (_, i) => {
+      const d = new Date(now.getFullYear(), now.getMonth() - (5-i), 1);
+      return { label: d.toLocaleDateString('en-IN', {month: 'short'}), year: d.getFullYear(), month: d.getMonth() };
+    });
+    const monthlyCounts = months.map(m => ({
+      label: m.label,
+      count: allOrders.filter(o => {
+        const d = new Date(o.createdAt);
+        return d.getFullYear() === m.year && d.getMonth() === m.month;
+      }).length
+    }));
+    const maxMonthly = Math.max(...monthlyCounts.map(m => m.count), 1);
+
+    page.innerHTML = `
+      <div class="admin-layout">
+        ${this._extAdminSidebar('reports')}
+        <div class="admin-content">
+          <h1 class="section-title font-display mb-2">Reports & Analytics</h1>
+
+          <!-- Revenue KPIs -->
+          <div class="stats-grid mb-2">
+            <div class="stat-card">
+              <div class="stat-card-icon" style="background:rgba(167,139,250,0.12);color:var(--violet-400);">💰</div>
+              <div class="stat-card-value">${Utils.formatPrice(revenue.total)}</div>
+              <div class="stat-card-label">Total Revenue</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-icon" style="background:rgba(52,211,153,0.12);color:var(--emerald-400);">✅</div>
+              <div class="stat-card-value">${Utils.formatPrice(revenue.completed)}</div>
+              <div class="stat-card-label">Completed Orders</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-icon" style="background:rgba(245,158,11,0.12);color:var(--amber-400);">👥</div>
+              <div class="stat-card-value">${allUsers.length}</div>
+              <div class="stat-card-label">Registered Users</div>
+            </div>
+            <div class="stat-card">
+              <div class="stat-card-icon" style="background:rgba(56,189,248,0.12);color:var(--sky-400);">📚</div>
+              <div class="stat-card-value">${allBooks.length}</div>
+              <div class="stat-card-label">Total Listings</div>
+            </div>
+          </div>
+
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+            <!-- Orders Per Month Chart -->
+            <div class="card">
+              <h3 class="card-title mb-2">Orders — Last 6 Months</h3>
+              <div style="display: flex; align-items: flex-end; gap: 0.75rem; height: 140px;">
+                ${monthlyCounts.map(m => `
+                  <div style="flex: 1; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; height: 100%;">
+                    <span class="text-xs text-muted">${m.count}</span>
+                    <div style="flex:1; display:flex; align-items:flex-end; width:100%;">
+                      <div style="
+                        width: 100%;
+                        height: ${Math.max(4, (m.count / maxMonthly) * 100)}%;
+                        background: linear-gradient(to top, var(--amber-600), var(--amber-400));
+                        border-radius: 4px 4px 0 0;
+                        transition: all 0.3s ease;
+                      "></div>
+                    </div>
+                    <span class="text-xs text-muted">${m.label}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Genre Breakdown Chart -->
+            <div class="card">
+              <h3 class="card-title mb-2">Books by Genre</h3>
+              <div style="display: flex; flex-direction: column; gap: 0.6rem;">
+                ${topGenres.map(([genre, count]) => `
+                  <div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:0.2rem;">
+                      <span class="text-xs">${genre}</span>
+                      <span class="text-xs text-muted">${count}</span>
+                    </div>
+                    <div style="background: var(--border-color); border-radius: 4px; height: 6px;">
+                      <div style="
+                        width: ${(count/maxGenre)*100}%;
+                        height: 100%;
+                        background: linear-gradient(to right, var(--amber-600), var(--amber-400));
+                        border-radius: 4px;
+                      "></div>
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+
+            <!-- Order Status Breakdown -->
+            <div class="card">
+              <h3 class="card-title mb-1">Order Status Breakdown</h3>
+              ${[
+                { label: 'Pending', status: 'pending', color: 'var(--amber-400)' },
+                { label: 'Confirmed', status: 'confirmed', color: 'var(--sky-400)' },
+                { label: 'Shipped', status: 'shipped', color: 'var(--violet-400)' },
+                { label: 'Collected', status: 'collected', color: 'var(--emerald-400)' },
+                { label: 'Cancelled', status: 'cancelled', color: 'var(--rose-400)' }
+              ].map(s => {
+                const count = allOrders.filter(o => o.status === s.status).length;
+                const pct = allOrders.length ? Math.round((count/allOrders.length)*100) : 0;
+                return `
+                  <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                    <div style="display:flex; align-items:center; gap:0.5rem;">
+                      <div style="width:10px;height:10px;border-radius:50%;background:${s.color};"></div>
+                      <span class="text-sm">${s.label}</span>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:0.75rem;">
+                      <span class="text-xs text-muted">${pct}%</span>
+                      <span class="text-sm font-semibold">${count}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+
+            <!-- Top Books by Stock -->
+            <div class="card">
+              <h3 class="card-title mb-1">Low Stock Alert</h3>
+              ${allBooks.filter(b => b.quantity <= 3).sort((a,b) => a.quantity - b.quantity).slice(0,6).map(b => `
+                <div style="display:flex; justify-content:space-between; align-items:center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
+                  <div>
+                    <div class="text-sm font-medium">${b.title.length > 28 ? b.title.slice(0,28)+'…' : b.title}</div>
+                    <div class="text-xs text-muted">${b.author}</div>
+                  </div>
+                  <span class="badge ${b.quantity === 0 ? 'badge-worn' : 'badge-fair'}">${b.quantity === 0 ? 'Out of stock' : b.quantity + ' left'}</span>
+                </div>
+              `).join('') || '<p class="text-muted text-sm">All books are well-stocked!</p>'}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  },
+
+  // Extended admin sidebar with Users & Reports links
+  _extAdminSidebar(active) {
+    const links = [
+      { key: 'dashboard', icon: Icons.dashboard, label: 'Dashboard', route: 'admin' },
+      { key: 'inventory', icon: Icons.book, label: 'Inventory', route: 'admin/inventory' },
+      { key: 'orders', icon: Icons.package, label: 'Orders', route: 'admin/orders' },
+      { key: 'users', icon: Icons.user, label: 'Users', route: 'admin/users' },
+      { key: 'reports', icon: Icons.dashboard, label: 'Reports', route: 'admin/reports' }
+    ];
+    return `
+      <div class="admin-sidebar">
+        ${links.map(l => `
+          <div class="admin-sidebar-link ${active === l.key ? 'active' : ''}"
+               onclick="Router.navigate('${l.route}')">
+            ${l.icon}
+            <span>${l.label}</span>
+          </div>
+        `).join('')}
+        <div style="flex: 1;"></div>
+        <div class="admin-sidebar-link" onclick="Router.navigate('')">
+          ${Icons.chevronLeft}
+          <span>Back to Store</span>
+        </div>
+      </div>
+    `;
   }
 };

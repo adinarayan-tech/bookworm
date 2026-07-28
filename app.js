@@ -159,6 +159,8 @@ const DB = {
     delete snakeBook.id;
     snakeBook.listed_at = new Date().toISOString();
     snakeBook.updated_at = new Date().toISOString();
+    // seller_id may be passed in; if not, leave as null (admin-added books)
+    if (!snakeBook.seller_id) snakeBook.seller_id = null;
 
     const { data, error } = await supabaseClient
       .from('books').insert(snakeBook).select().single();
@@ -342,6 +344,55 @@ const DB = {
     const { data, error } = await supabaseClient.from('books').select('genre');
     if (error) return [];
     return [...new Set(data.map(b => b.genre).filter(Boolean))].sort();
+  },
+
+  // ── Reviews ──
+  async getReviews(bookId) {
+    const { data, error } = await supabaseClient
+      .from('reviews')
+      .select('*, users(name)')
+      .eq('book_id', bookId)
+      .order('created_at', { ascending: false });
+    if (error) { console.error('getReviews:', error); return []; }
+    return data.map(r => ({
+      id: r.id,
+      bookId: r.book_id,
+      userId: r.user_id,
+      rating: r.rating,
+      comment: r.comment,
+      createdAt: r.created_at,
+      userName: r.users?.name || 'Anonymous'
+    }));
+  },
+
+  async addReview(bookId, userId, rating, comment) {
+    const { data, error } = await supabaseClient
+      .from('reviews')
+      .insert({ book_id: bookId, user_id: userId, rating, comment })
+      .select()
+      .single();
+    if (error) { console.error('addReview:', error); return null; }
+    return data;
+  },
+
+  async getAverageRating(bookId) {
+    const { data, error } = await supabaseClient
+      .from('reviews')
+      .select('rating')
+      .eq('book_id', bookId);
+    if (error || !data.length) return null;
+    return (data.reduce((s, r) => s + r.rating, 0) / data.length).toFixed(1);
+  },
+
+  // ── Seller-specific books ──
+  async getBooksBySeller(sellerId) {
+    const { data, error } = await supabaseClient
+      .from('books')
+      .select('*')
+      .eq('seller_id', sellerId)
+      .order('listed_at', { ascending: false });
+    if (error) { console.error('getBooksBySeller:', error); return []; }
+    return _toCamel(data);
   }
 };
 
@@ -371,7 +422,7 @@ const Auth = {
     const { data, error } = await supabaseClient.from('users').select('*').eq('id', userId).single();
     if (!error && data) {
       this._current = _toCamel(data);
-      Router._updateNav(); // Force nav update since user is ready
+      Router._updateNavbar(); // Force nav update since user is ready
     }
   },
 
@@ -495,6 +546,41 @@ const Cart = {
     if (issues.length) this._save();
     return issues;
   }
+};
+
+// ── Wishlist State (localStorage) ──
+const Wishlist = {
+  _KEY: 'bookworm_wishlist',
+
+  _load() {
+    try { return JSON.parse(localStorage.getItem(this._KEY)) || []; }
+    catch { return []; }
+  },
+  _save(items) {
+    localStorage.setItem(this._KEY, JSON.stringify(items));
+  },
+
+  get items() { return this._load(); },
+  get count() { return this._load().length; },
+
+  has(bookId) {
+    return this._load().some(b => b.id === bookId);
+  },
+  add(book) {
+    const items = this._load();
+    if (!items.some(b => b.id === book.id)) {
+      items.push({ id: book.id, title: book.title, author: book.author, studentPrice: book.studentPrice, originalPrice: book.originalPrice, genre: book.genre, isbn: book.isbn, imageUrl: book.imageUrl, condition: book.condition, quantity: book.quantity });
+      this._save(items);
+    }
+  },
+  remove(bookId) {
+    this._save(this._load().filter(b => b.id !== bookId));
+  },
+  toggle(book) {
+    if (this.has(book.id)) { this.remove(book.id); return false; }
+    else { this.add(book); return true; }
+  },
+  clear() { this._save([]); }
 };
 
 // ── Toast System ──

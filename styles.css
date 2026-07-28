@@ -1843,3 +1843,67 @@ h1, h2, h3, h4 { line-height: 1.2; }
   .section { padding: 2.5rem 0; }
   .book-grid { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 1rem; }
 }
+
+/* ── Wishlist remove button (on book cards in wishlist page) ── */
+.wishlist-remove-btn {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 2;
+  background: rgba(2, 6, 23, 0.75);
+  border: 1px solid rgba(251, 113, 133, 0.3);
+  border-radius: var(--radius-full);
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  backdrop-filter: blur(8px);
+}
+.wishlist-remove-btn:hover {
+  background: rgba(244, 63, 94, 0.15);
+  border-color: var(--rose-400);
+  transform: scale(1.1);
+}
+
+/* ── Utility spacing ── */
+.mb-1 { margin-bottom: 1rem; }
+.mb-2 { margin-bottom: 2rem; }
+.mt-1 { margin-top: 1rem; }
+.mt-2 { margin-top: 1.5rem; }
+.flex-1 { flex: 1; }
+
+/* ── Color utilities ── */
+.text-rose { color: var(--rose-400); }
+.text-emerald { color: var(--emerald-400); }
+.text-amber { color: var(--amber-400); }
+.text-muted { color: var(--text-muted); }
+.text-violet { color: var(--violet-400); }
+
+/* ── Stats grid spacing ── */
+.stats-grid.mb-2 { margin-bottom: 2rem; }
+
+/* ── Admin reports chart responsive ── */
+@media (max-width: 900px) {
+  .admin-content [style*="grid-template-columns: 1fr 1fr"] {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+/* ── Profile page avatar large ── */
+.profile-avatar-lg {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--amber-500), var(--violet-500));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: white;
+  margin: 0 auto;
+}
