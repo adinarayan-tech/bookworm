@@ -17,9 +17,15 @@ const Router = {
       'cart': () => Pages.cart(),
       'orders': () => Pages.orders(),
       'login': () => Pages.login(),
+      'profile': () => Pages.profile(),
+      'sell': () => Pages.sell(),
+      'wishlist': () => Pages.wishlist(),
+      'seller': () => Pages.sellerDashboard(),
       'admin': () => Pages.adminDashboard(),
       'admin/inventory': () => Pages.adminInventory(),
-      'admin/orders': () => Pages.adminOrders()
+      'admin/orders': () => Pages.adminOrders(),
+      'admin/users': () => Pages.adminUsers(),
+      'admin/reports': () => Pages.adminReports()
     };
 
     window.addEventListener('hashchange', () => this._handleRoute());
@@ -48,7 +54,7 @@ const Router = {
       this.navigate('login');
       return;
     }
-    if ((path === 'cart' || path === 'orders') && !Auth.isLoggedIn) {
+    if (['cart', 'orders', 'profile', 'sell', 'seller'].includes(path) && !Auth.isLoggedIn) {
       this.navigate('login');
       return;
     }
@@ -94,6 +100,16 @@ const Router = {
         (this._current.startsWith('admin') && href === 'admin'));
     });
 
+    // Show/hide auth-specific nav links
+    const adminLink = document.getElementById('nav-admin-link');
+    if (adminLink) adminLink.style.display = Auth.isAdmin ? '' : 'none';
+
+    const sellLink = document.getElementById('nav-sell-link');
+    if (sellLink) sellLink.style.display = Auth.isLoggedIn && !Auth.isAdmin ? '' : 'none';
+
+    const wishlistLink = document.getElementById('nav-wishlist-link');
+    if (wishlistLink) wishlistLink.style.display = Auth.isLoggedIn ? '' : 'none';
+
     // Update cart badge
     const badge = document.querySelector('.cart-badge');
     if (badge) {
@@ -113,7 +129,7 @@ const Router = {
     if (Auth.isLoggedIn) {
       const initials = Auth.user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
       container.innerHTML = `
-        <button class="nav-user-btn" onclick="Router.navigate(Auth.isAdmin ? 'admin' : 'orders')" title="${Auth.user.name}">
+        <button class="nav-user-btn" onclick="Router.navigate('profile')" title="${Auth.user.name}">
           <span class="nav-user-avatar">${initials}</span>
           <span>${Auth.user.name.split(' ')[0]}</span>
         </button>
