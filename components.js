@@ -13,7 +13,7 @@ const Components = {
 
     return `
       <div class="book-card" onclick="Router.navigate('book?id=${book.id}')"
-           style="animation: fadeInUp 0.4s ease-out ${index * 0.06}s both;">
+           style="--delay: ${index * 0.06}s;">
         <div class="book-card-image">
           ${coverUrl ? `
             <img src="${coverUrl}" alt="${book.title}" class="book-cover-img"
@@ -62,7 +62,7 @@ const Components = {
             <span>${l.label}</span>
           </div>
         `).join('')}
-        <div style="flex: 1;"></div>
+        <div class="flex-1"></div>
         <div class="admin-sidebar-link" onclick="Router.navigate('')">
           ${Icons.chevronLeft}
           <span>Back to Store</span>
