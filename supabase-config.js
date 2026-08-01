@@ -49,8 +49,8 @@
   if (!/^https:\/\/.+\.supabase\.co$/.test(SUPABASE_URL)) {
     throw new Error('[BookWorm] SUPABASE_URL does not look like a valid Supabase project URL.');
   }
-  if (SUPABASE_ANON_KEY.length < 100) {
-    throw new Error('[BookWorm] SUPABASE_ANON_KEY appears to be truncated or invalid.');
+  if (SUPABASE_ANON_KEY.length < 20) {
+    throw new Error('[BookWorm] SUPABASE_ANON_KEY appears to be empty or invalid.');
   }
 
   // ── Initialise Supabase client ──

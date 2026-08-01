@@ -4,6 +4,9 @@
 -- Run this entire script in your Supabase SQL Editor:
 --   Dashboard → SQL Editor → New Query → Paste → Run
 --
+-- This script is IDEMPOTENT — safe to re-run at any time.
+-- It creates missing tables, then enables RLS, then sets policies.
+--
 -- Tables covered: users, books, orders, order_items, reviews
 --
 -- Role model:
@@ -13,8 +16,82 @@
 -- ============================================================
 
 
--- ── STEP 1: Enable RLS on all tables ──────────────────────
--- This is the master switch. Without this, ALL data is public.
+-- ── STEP 1: Create any missing tables ─────────────────────
+-- These are CREATE TABLE IF NOT EXISTS statements.
+-- If the table already exists, this is a no-op.
+
+-- public.users (mirrors auth.users via trigger)
+CREATE TABLE IF NOT EXISTS public.users (
+  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  name       TEXT,
+  email      TEXT,
+  role       TEXT NOT NULL DEFAULT 'user' CHECK (role IN ('user', 'admin', 'seller')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- public.books
+CREATE TABLE IF NOT EXISTS public.books (
+  id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  title          TEXT NOT NULL,
+  author         TEXT,
+  isbn           TEXT,
+  genre          TEXT,
+  condition      TEXT CHECK (condition IN ('Like New', 'Good', 'Fair', 'Worn')),
+  student_price  NUMERIC(10,2) NOT NULL,
+  original_price NUMERIC(10,2),
+  quantity       INTEGER NOT NULL DEFAULT 1,
+  description    TEXT,
+  image_url      TEXT,
+  seller_id      UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  listed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- public.orders
+CREATE TABLE IF NOT EXISTS public.orders (
+  id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id            UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  status             TEXT NOT NULL DEFAULT 'pending'
+                       CHECK (status IN ('pending', 'confirmed', 'shipped', 'delivered', 'cancelled')),
+  fulfillment_type   TEXT CHECK (fulfillment_type IN ('delivery', 'pickup')),
+  total_amount       NUMERIC(10,2) NOT NULL,
+  shipping_name      TEXT,
+  shipping_address   TEXT,
+  shipping_city      TEXT,
+  shipping_zip       TEXT,
+  shipping_phone     TEXT,
+  collect_date       DATE,
+  collect_time_slot  TEXT,
+  created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- public.order_items
+CREATE TABLE IF NOT EXISTS public.order_items (
+  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  order_id          UUID NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
+  book_id           UUID NOT NULL REFERENCES public.books(id) ON DELETE RESTRICT,
+  quantity          INTEGER NOT NULL DEFAULT 1,
+  price_at_purchase NUMERIC(10,2) NOT NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- public.reviews  ← this was the missing table causing your error
+CREATE TABLE IF NOT EXISTS public.reviews (
+  id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  book_id    UUID NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+  user_id    UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  rating     INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment    TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- One review per user per book
+  UNIQUE (book_id, user_id)
+);
+
+
+-- ── STEP 2: Enable RLS on all tables ──────────────────────
+-- The master switch. Without this, ALL data is world-readable.
 
 ALTER TABLE public.users       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.books       ENABLE ROW LEVEL SECURITY;
@@ -23,9 +100,9 @@ ALTER TABLE public.order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reviews     ENABLE ROW LEVEL SECURITY;
 
 
--- ── STEP 2: Helper function — is current user an admin? ───
+-- ── STEP 3: Helper function — is current user an admin? ───
 -- Reads the role column from public.users for the current JWT.
--- SECURITY DEFINER so it runs as postgres (bypasses RLS on itself).
+-- SECURITY DEFINER so it bypasses RLS when checking its own table.
 
 CREATE OR REPLACE FUNCTION public.is_admin()
 RETURNS boolean
@@ -42,131 +119,144 @@ AS $$
 $$;
 
 
+-- ── STEP 4: Auth trigger — auto-create profile on signup ──
+-- When a user signs up via Supabase Auth, automatically insert
+-- a matching row in public.users so our app can read it.
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  INSERT INTO public.users (id, name, email, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'name', ''),
+    NEW.email,
+    COALESCE(NEW.raw_user_meta_data->>'role', 'user')
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+-- Attach trigger (drop first to make this idempotent)
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+
 -- ============================================================
--- TABLE: public.users
+-- POLICIES: public.users
 -- ============================================================
 
--- Users can only read their own profile row.
--- Admins can read all users.
-DROP POLICY IF EXISTS "users: own profile read"  ON public.users;
-DROP POLICY IF EXISTS "users: admin read all"    ON public.users;
-DROP POLICY IF EXISTS "users: own profile update" ON public.users;
+DROP POLICY IF EXISTS "users: own profile read"   ON public.users;
+DROP POLICY IF EXISTS "users: admin read all"      ON public.users;
+DROP POLICY IF EXISTS "users: own profile update"  ON public.users;
 
+-- Users read their own profile row only.
 CREATE POLICY "users: own profile read"
-  ON public.users
-  FOR SELECT
+  ON public.users FOR SELECT
   USING (auth.uid() = id);
 
+-- Admins can read all user profiles.
 CREATE POLICY "users: admin read all"
-  ON public.users
-  FOR SELECT
+  ON public.users FOR SELECT
   USING (public.is_admin());
 
--- Users can update only their own profile (name, avatar, etc).
--- They CANNOT change their own `role` column — that's admin-only.
+-- Users can update their own profile, but CANNOT escalate their own role.
 CREATE POLICY "users: own profile update"
-  ON public.users
-  FOR UPDATE
+  ON public.users FOR UPDATE
   USING (auth.uid() = id)
   WITH CHECK (
     auth.uid() = id
     AND role = (SELECT role FROM public.users WHERE id = auth.uid())
   );
 
--- Insert is handled by the Supabase Auth trigger (handle_new_user).
--- Do NOT add an open INSERT policy here.
-
 
 -- ============================================================
--- TABLE: public.books
+-- POLICIES: public.books
 -- ============================================================
 
--- Anyone (including anonymous visitors) can browse books.
-DROP POLICY IF EXISTS "books: public read"          ON public.books;
-DROP POLICY IF EXISTS "books: seller insert own"    ON public.books;
-DROP POLICY IF EXISTS "books: seller update own"    ON public.books;
-DROP POLICY IF EXISTS "books: admin full access"    ON public.books;
+DROP POLICY IF EXISTS "books: public read"        ON public.books;
+DROP POLICY IF EXISTS "books: seller insert own"  ON public.books;
+DROP POLICY IF EXISTS "books: seller update own"  ON public.books;
+DROP POLICY IF EXISTS "books: admin full access"  ON public.books;
 
+-- Anyone (anon included) can browse the catalog.
 CREATE POLICY "books: public read"
-  ON public.books
-  FOR SELECT
+  ON public.books FOR SELECT
   USING (true);
 
--- Authenticated sellers can list their own books.
+-- Sellers can list books under their own seller_id.
 CREATE POLICY "books: seller insert own"
-  ON public.books
-  FOR INSERT
+  ON public.books FOR INSERT
   WITH CHECK (
     auth.uid() IS NOT NULL
     AND auth.uid() = seller_id
   );
 
--- Sellers can update only books they own.
--- They cannot reassign seller_id to someone else.
+-- Sellers can update only their own listings; cannot transfer ownership.
 CREATE POLICY "books: seller update own"
-  ON public.books
-  FOR UPDATE
+  ON public.books FOR UPDATE
   USING (auth.uid() = seller_id)
   WITH CHECK (auth.uid() = seller_id);
 
 -- Admins have full INSERT / UPDATE / DELETE.
 CREATE POLICY "books: admin full access"
-  ON public.books
-  FOR ALL
+  ON public.books FOR ALL
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
 
 -- ============================================================
--- TABLE: public.orders
+-- POLICIES: public.orders
 -- ============================================================
 
--- Users see only their own orders. Admins see all.
-DROP POLICY IF EXISTS "orders: own read"         ON public.orders;
-DROP POLICY IF EXISTS "orders: admin read all"   ON public.orders;
-DROP POLICY IF EXISTS "orders: own insert"       ON public.orders;
-DROP POLICY IF EXISTS "orders: admin update"     ON public.orders;
+DROP POLICY IF EXISTS "orders: own read"       ON public.orders;
+DROP POLICY IF EXISTS "orders: admin read all" ON public.orders;
+DROP POLICY IF EXISTS "orders: own insert"     ON public.orders;
+DROP POLICY IF EXISTS "orders: admin update"   ON public.orders;
 
+-- Users see only their own orders.
 CREATE POLICY "orders: own read"
-  ON public.orders
-  FOR SELECT
+  ON public.orders FOR SELECT
   USING (auth.uid() = user_id);
 
+-- Admins see all orders.
 CREATE POLICY "orders: admin read all"
-  ON public.orders
-  FOR SELECT
+  ON public.orders FOR SELECT
   USING (public.is_admin());
 
--- Authenticated users can create orders for themselves only.
+-- Authenticated users can place orders for themselves only.
 CREATE POLICY "orders: own insert"
-  ON public.orders
-  FOR INSERT
+  ON public.orders FOR INSERT
   WITH CHECK (
     auth.uid() IS NOT NULL
     AND auth.uid() = user_id
   );
 
--- Only admins can change order status (pending → shipped → delivered).
--- Users cannot self-update order status.
+-- Only admins can update order status (pending → shipped → delivered).
+-- Users cannot self-approve or self-cancel orders.
 CREATE POLICY "orders: admin update"
-  ON public.orders
-  FOR UPDATE
+  ON public.orders FOR UPDATE
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
 
 -- ============================================================
--- TABLE: public.order_items
+-- POLICIES: public.order_items
 -- ============================================================
 
--- Users can read line items only for orders they own.
 DROP POLICY IF EXISTS "order_items: own read"       ON public.order_items;
 DROP POLICY IF EXISTS "order_items: admin read all" ON public.order_items;
 DROP POLICY IF EXISTS "order_items: own insert"     ON public.order_items;
 
+-- Users can read line items only if they own the parent order.
 CREATE POLICY "order_items: own read"
-  ON public.order_items
-  FOR SELECT
+  ON public.order_items FOR SELECT
   USING (
     EXISTS (
       SELECT 1 FROM public.orders
@@ -175,16 +265,14 @@ CREATE POLICY "order_items: own read"
     )
   );
 
+-- Admins can read all order line items.
 CREATE POLICY "order_items: admin read all"
-  ON public.order_items
-  FOR SELECT
+  ON public.order_items FOR SELECT
   USING (public.is_admin());
 
--- Line items are inserted as part of order creation.
--- User must own the parent order.
+-- Users can insert line items only into orders they own.
 CREATE POLICY "order_items: own insert"
-  ON public.order_items
-  FOR INSERT
+  ON public.order_items FOR INSERT
   WITH CHECK (
     auth.uid() IS NOT NULL
     AND EXISTS (
@@ -194,30 +282,28 @@ CREATE POLICY "order_items: own insert"
     )
   );
 
--- No direct UPDATE or DELETE on order_items for anyone.
--- Cancellation is handled via the orders status column only.
+-- No direct UPDATE or DELETE on order_items by anyone.
+-- Cancellation flows through the orders.status column only.
 
 
 -- ============================================================
--- TABLE: public.reviews
+-- POLICIES: public.reviews
 -- ============================================================
 
--- Anyone can read reviews.
-DROP POLICY IF EXISTS "reviews: public read"     ON public.reviews;
-DROP POLICY IF EXISTS "reviews: own insert"      ON public.reviews;
-DROP POLICY IF EXISTS "reviews: own update"      ON public.reviews;
-DROP POLICY IF EXISTS "reviews: own delete"      ON public.reviews;
-DROP POLICY IF EXISTS "reviews: admin full"      ON public.reviews;
+DROP POLICY IF EXISTS "reviews: public read"  ON public.reviews;
+DROP POLICY IF EXISTS "reviews: own insert"   ON public.reviews;
+DROP POLICY IF EXISTS "reviews: own update"   ON public.reviews;
+DROP POLICY IF EXISTS "reviews: own delete"   ON public.reviews;
+DROP POLICY IF EXISTS "reviews: admin full"   ON public.reviews;
 
+-- Anyone can read reviews (public catalog feature).
 CREATE POLICY "reviews: public read"
-  ON public.reviews
-  FOR SELECT
+  ON public.reviews FOR SELECT
   USING (true);
 
--- Authenticated users can insert a review for themselves only.
+-- Authenticated users can submit one review per book (enforced by UNIQUE constraint).
 CREATE POLICY "reviews: own insert"
-  ON public.reviews
-  FOR INSERT
+  ON public.reviews FOR INSERT
   WITH CHECK (
     auth.uid() IS NOT NULL
     AND auth.uid() = user_id
@@ -225,54 +311,48 @@ CREATE POLICY "reviews: own insert"
 
 -- Users can edit only their own reviews.
 CREATE POLICY "reviews: own update"
-  ON public.reviews
-  FOR UPDATE
+  ON public.reviews FOR UPDATE
   USING (auth.uid() = user_id)
   WITH CHECK (auth.uid() = user_id);
 
--- Users can delete only their own reviews.
+-- Users can delete their own reviews.
 CREATE POLICY "reviews: own delete"
-  ON public.reviews
-  FOR DELETE
+  ON public.reviews FOR DELETE
   USING (auth.uid() = user_id);
 
--- Admins can delete any review (moderation).
+-- Admins can moderate (delete) any review.
 CREATE POLICY "reviews: admin full"
-  ON public.reviews
-  FOR ALL
+  ON public.reviews FOR ALL
   USING (public.is_admin())
   WITH CHECK (public.is_admin());
 
 
 -- ============================================================
--- STEP 3: Storage — book-covers bucket policies
+-- STORAGE: book-covers bucket policies
 -- ============================================================
--- Run this ONLY if you use Supabase Storage for book cover images.
--- Requires the bucket `book-covers` to already exist.
+-- Run this block only if you have uploaded at least one file
+-- to the book-covers bucket (the bucket must exist first).
 
--- Anyone can read cover images (public catalog).
-DROP POLICY IF EXISTS "covers: public read"     ON storage.objects;
-DROP POLICY IF EXISTS "covers: auth upload"     ON storage.objects;
-DROP POLICY IF EXISTS "covers: owner delete"    ON storage.objects;
+DROP POLICY IF EXISTS "covers: public read"  ON storage.objects;
+DROP POLICY IF EXISTS "covers: auth upload"  ON storage.objects;
+DROP POLICY IF EXISTS "covers: owner delete" ON storage.objects;
 
+-- Anyone can view cover images (catalog is public).
 CREATE POLICY "covers: public read"
-  ON storage.objects
-  FOR SELECT
+  ON storage.objects FOR SELECT
   USING (bucket_id = 'book-covers');
 
 -- Authenticated users can upload cover images.
 CREATE POLICY "covers: auth upload"
-  ON storage.objects
-  FOR INSERT
+  ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'book-covers'
     AND auth.uid() IS NOT NULL
   );
 
--- Users can delete only images they uploaded; admins can delete any.
+-- Uploader or admin can delete a cover image.
 CREATE POLICY "covers: owner delete"
-  ON storage.objects
-  FOR DELETE
+  ON storage.objects FOR DELETE
   USING (
     bucket_id = 'book-covers'
     AND (
@@ -283,10 +363,9 @@ CREATE POLICY "covers: owner delete"
 
 
 -- ============================================================
--- STEP 4: Verification — confirm RLS is active
+-- VERIFICATION — run this after everything above succeeds
 -- ============================================================
--- Run this query after the above to confirm every table has RLS on.
--- Expected: all rows show rowsecurity = true
+-- Expected result: all 5 rows show RLS Enabled = true
 
 SELECT
   schemaname,
