@@ -129,9 +129,9 @@ const Router = {
     if (Auth.isLoggedIn) {
       const initials = Auth.user.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
       container.innerHTML = `
-        <button class="nav-user-btn" onclick="Router.navigate('profile')" title="${Auth.user.name}">
-          <span class="nav-user-avatar">${initials}</span>
-          <span>${Auth.user.name.split(' ')[0]}</span>
+        <button class="nav-user-btn" onclick="Router.navigate('profile')" title="${Utils.escapeHtml(Auth.user.name)}">
+          <span class="nav-user-avatar">${Utils.escapeHtml(initials)}</span>
+          <span>${Utils.escapeHtml(Auth.user.name.split(' ')[0])}</span>
         </button>
         <button class="btn btn-ghost btn-icon" onclick="Auth.logout(); Router.navigate(''); Router._updateNavbar();" title="Logout">
           ${Icons.logout}

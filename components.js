@@ -28,8 +28,8 @@ const Components = {
           </div>
         </div>
         <div class="book-card-body">
-          <div class="book-card-title">${book.title}</div>
-          <div class="book-card-author">by ${book.author}</div>
+          <div class="book-card-title">${Utils.escapeHtml(book.title)}</div>
+          <div class="book-card-author">by ${Utils.escapeHtml(book.author)}</div>
           <div class="book-card-footer">
             <div class="book-price">
               <span class="book-price-current">${Utils.formatPrice(book.studentPrice)}</span>
@@ -50,7 +50,9 @@ const Components = {
     const links = [
       { key: 'dashboard', icon: Icons.dashboard, label: 'Dashboard', route: 'admin' },
       { key: 'inventory', icon: Icons.book, label: 'Inventory', route: 'admin/inventory' },
-      { key: 'orders', icon: Icons.package, label: 'Orders', route: 'admin/orders' }
+      { key: 'orders', icon: Icons.package, label: 'Orders', route: 'admin/orders' },
+      { key: 'users', icon: Icons.user, label: 'Users', route: 'admin/users' },
+      { key: 'reports', icon: Icons.dashboard, label: 'Reports', route: 'admin/reports' }
     ];
 
     return `

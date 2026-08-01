@@ -1879,7 +1879,7 @@ const Pages = {
 
     page.innerHTML = `
       <div class="admin-layout">
-        ${this._extAdminSidebar('users')}
+        ${Components.adminSidebar('users')}
         <div class="admin-content">
           <div class="section-header">
             <div>
@@ -1983,7 +1983,7 @@ const Pages = {
 
     page.innerHTML = `
       <div class="admin-layout">
-        ${this._extAdminSidebar('reports')}
+        ${Components.adminSidebar('reports')}
         <div class="admin-content">
           <h1 class="section-title font-display mb-2">Reports & Analytics</h1>
 
@@ -2103,30 +2103,5 @@ const Pages = {
     `;
   },
 
-  // Extended admin sidebar with Users & Reports links
-  _extAdminSidebar(active) {
-    const links = [
-      { key: 'dashboard', icon: Icons.dashboard, label: 'Dashboard', route: 'admin' },
-      { key: 'inventory', icon: Icons.book, label: 'Inventory', route: 'admin/inventory' },
-      { key: 'orders', icon: Icons.package, label: 'Orders', route: 'admin/orders' },
-      { key: 'users', icon: Icons.user, label: 'Users', route: 'admin/users' },
-      { key: 'reports', icon: Icons.dashboard, label: 'Reports', route: 'admin/reports' }
-    ];
-    return `
-      <div class="admin-sidebar">
-        ${links.map(l => `
-          <div class="admin-sidebar-link ${active === l.key ? 'active' : ''}"
-               onclick="Router.navigate('${l.route}')">
-            ${l.icon}
-            <span>${l.label}</span>
-          </div>
-        `).join('')}
-        <div style="flex: 1;"></div>
-        <div class="admin-sidebar-link" onclick="Router.navigate('')">
-          ${Icons.chevronLeft}
-          <span>Back to Store</span>
-        </div>
-      </div>
-    `;
   }
 };
