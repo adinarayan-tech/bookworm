@@ -246,12 +246,12 @@ const Pages = {
           </div>
           <div class="book-detail-info">
             <span class="badge ${conditionClass}" style="margin-bottom: 0.75rem;">${book.condition}</span>
-            <h1>${book.title}</h1>
-            <p class="book-detail-author">by ${book.author}</p>
+            <h1>${Utils.escapeHtml(book.title)}</h1>
+            <p class="book-detail-author">by ${Utils.escapeHtml(book.author)}</p>
 
             <div class="book-detail-meta">
-              ${book.isbn ? `<span class="book-detail-meta-item">${Icons.book} ISBN: ${book.isbn}</span>` : ''}
-              ${book.genre ? `<span class="book-detail-meta-item">📂 ${book.genre}</span>` : ''}
+              ${book.isbn ? `<span class="book-detail-meta-item">${Icons.book} ISBN: ${Utils.escapeHtml(book.isbn)}</span>` : ''}
+              ${book.genre ? `<span class="book-detail-meta-item">📂 ${Utils.escapeHtml(book.genre)}</span>` : ''}
               <span class="book-detail-meta-item">${Icons.clock} Listed ${Utils.formatDate(book.listedAt)}</span>
             </div>
 
@@ -261,7 +261,7 @@ const Pages = {
             </div>
             ${savings > 0 ? `<p class="book-detail-savings">💰 You save ${savings}% compared to retail!</p>` : ''}
 
-            ${book.description ? `<p class="book-detail-description">${book.description}</p>` : ''}
+            ${book.description ? `<p class="book-detail-description">${Utils.escapeHtml(book.description)}</p>` : ''}
 
             <p class="text-sm mb-1" style="color: ${book.quantity > 0 ? (book.quantity <= 2 ? 'var(--rose-400)' : 'var(--emerald-400)') : 'var(--rose-500)'}">
               ${book.quantity > 0 ? `${book.quantity} cop${book.quantity !== 1 ? 'ies' : 'y'} available` + (book.quantity <= 2 ? ' — hurry!' : '') : 'Out of stock'}
@@ -434,13 +434,13 @@ const Pages = {
                     ${r.userName.split(' ').map(w => w[0]).join('').toUpperCase().slice(0,2)}
                   </div>
                   <div>
-                    <div class="text-sm font-medium">${r.userName}</div>
+                    <div class="text-sm font-medium">${Utils.escapeHtml(r.userName)}</div>
                     <div class="text-xs text-muted">${Utils.formatDate(r.createdAt)}</div>
                   </div>
                 </div>
                 <div>${stars(r.rating)}</div>
               </div>
-              ${r.comment ? `<p class="text-sm text-secondary">${r.comment}</p>` : ''}
+              ${r.comment ? `<p class="text-sm text-secondary">${Utils.escapeHtml(r.comment)}</p>` : ''}
             </div>
           `).join('')}
         </div>
@@ -528,8 +528,8 @@ const Pages = {
                     <div class="cart-item" data-book-id="${item.bookId}">
                       <div class="cart-item-image">${Utils.getBookEmoji(item.genre)}</div>
                       <div class="cart-item-info">
-                        <div class="cart-item-title">${item.title}</div>
-                        <div class="cart-item-author">${item.author}</div>
+                        <div class="cart-item-title">${Utils.escapeHtml(item.title)}</div>
+                        <div class="cart-item-author">${Utils.escapeHtml(item.author)}</div>
                         <div class="cart-item-price">${Utils.formatPrice(item.price)}</div>
                       </div>
                       <div class="qty-control">
@@ -627,7 +627,7 @@ const Pages = {
                 <h3 class="card-title" style="margin-bottom: 1rem;">Order Summary</h3>
                 ${items.map(item => `
                   <div class="cart-summary-row">
-                    <span class="text-secondary text-sm" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.title} × ${item.quantity}</span>
+                    <span class="text-secondary text-sm" style="max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${Utils.escapeHtml(item.title)} × ${item.quantity}</span>
                     <span class="text-sm">${Utils.formatPrice(item.price * item.quantity)}</span>
                   </div>
                 `).join('')}
@@ -768,12 +768,18 @@ const Pages = {
         ` : ''}
 
         <div id="orders-list">
-          ${await Promise.all(orders.map(async order => {
-            const statusClass = Utils.getStatusBadgeClass(order.status);
-            const itemDetails = await Promise.all(order.items.map(async item => {
-              const book = await DB.getBookById(item.bookId);
-              return `<li>📕 ${book ? book.title : 'Unknown Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
-            }));
+          ${(async () => {
+             // Batch fetch all books
+             const allBookIds = [...new Set(orders.flatMap(o => o.items.map(i => i.bookId)))];
+             const books = await DB.getBooksByIds(allBookIds);
+             const bookMap = Object.fromEntries(books.map(b => [b.id, b]));
+             
+             return orders.map(order => {
+               const statusClass = Utils.getStatusBadgeClass(order.status);
+               const itemDetails = order.items.map(item => {
+                 const book = bookMap[item.bookId];
+                 return `<li>📕 ${book ? Utils.escapeHtml(book.title) : 'Unknown Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
+               });
             return `
               <div class="order-card">
                 <div class="order-card-header">
@@ -802,7 +808,7 @@ const Pages = {
                 </div>
               </div>
             `;
-          })).then(cards => cards.join(''))}
+          }).join('')})()}
         </div>
       </div>
     `;
@@ -837,16 +843,6 @@ const Pages = {
           </div>
 
           ${!isSignIn ? `
-            <div class="role-selector">
-              <div class="role-option ${this._selectedRole === 'student' ? 'selected' : ''}" id="role-student" onclick="Pages._selectRole('student')">
-                <div class="role-option-icon">🎓</div>
-                <div class="role-option-label">Student</div>
-              </div>
-              <div class="role-option ${this._selectedRole === 'admin' ? 'selected' : ''}" id="role-admin" onclick="Pages._selectRole('admin')">
-                <div class="role-option-icon">🔧</div>
-                <div class="role-option-label">Store Admin</div>
-              </div>
-            </div>
             <div class="form-group">
               <label class="form-label">Your Name *</label>
               <input type="text" class="form-input" id="login-name" placeholder="e.g. Aarav Patel" />
@@ -905,7 +901,7 @@ const Pages = {
   async _handleAuth() {
     const isSignIn = this._authMode === 'signin';
     const email = document.getElementById('login-email')?.value.trim();
-    const password = document.getElementById('login-pw')?.value.trim();
+    const password = document.getElementById('login-pw')?.value; // DO NOT trim passwords
     let name = '';
 
     if (!isSignIn) name = document.getElementById('login-name')?.value.trim();
@@ -926,7 +922,7 @@ const Pages = {
         Toast.success('Welcome back!');
       } else {
         Toast.info('Creating account...');
-        await Auth.signUp(name, email, password, this._selectedRole);
+        await Auth.signUp(name, email, password); // role removed
         Toast.success('Account created! You are now signed in.');
       }
       
@@ -946,11 +942,16 @@ const Pages = {
 
   // ── ADMIN DASHBOARD ──
   async adminDashboard() {
+    if (!Auth.isAdmin) { Router.navigate('login'); return; }
+    
     const page = document.getElementById('page-content');
     Utils.showLoader(page);
 
-    const [stats, allOrders, allBooks] = await Promise.all([
-      DB.getStats(),
+    // Call RPC for stats instead of pulling everything client-side
+    const { data: statsJson, error } = await supabaseClient.rpc('get_admin_report_stats');
+    const stats = statsJson || { total_books: 0, total_stock: 0, pending_orders: 0, total_revenue: 0, low_stock: 0, out_of_stock: 0 };
+    
+    const [allOrders, allBooks] = await Promise.all([
       DB.getOrders(),
       DB.getBooks()
     ]);
@@ -966,36 +967,36 @@ const Pages = {
           <div class="stats-grid">
             <div class="stat-card">
               <div class="stat-card-icon" style="background: rgba(245, 158, 11, 0.12); color: var(--amber-400);">📚</div>
-              <div class="stat-card-value">${stats.totalBooks}</div>
+              <div class="stat-card-value">${stats.total_books || allBooks.length}</div>
               <div class="stat-card-label">Total Books</div>
             </div>
             <div class="stat-card">
               <div class="stat-card-icon" style="background: rgba(52, 211, 153, 0.12); color: var(--emerald-400);">📦</div>
-              <div class="stat-card-value">${stats.totalStock}</div>
+              <div class="stat-card-value">${stats.total_stock || allBooks.reduce((sum, b) => sum + b.quantity, 0)}</div>
               <div class="stat-card-label">Copies in Stock</div>
             </div>
             <div class="stat-card">
               <div class="stat-card-icon" style="background: rgba(251, 191, 36, 0.12); color: var(--amber-400);">⏳</div>
-              <div class="stat-card-value">${stats.pendingOrders}</div>
+              <div class="stat-card-value">${stats.pending_orders}</div>
               <div class="stat-card-label">Pending Orders</div>
             </div>
             <div class="stat-card">
               <div class="stat-card-icon" style="background: rgba(167, 139, 250, 0.12); color: var(--violet-400);">💰</div>
-              <div class="stat-card-value">${Utils.formatPrice(stats.revenue)}</div>
+              <div class="stat-card-value">${Utils.formatPrice(stats.total_revenue)}</div>
               <div class="stat-card-label">Total Revenue</div>
             </div>
           </div>
 
           <!-- Alerts Row -->
-          ${stats.lowStock > 0 || stats.outOfStock > 0 ? `
+          ${stats.low_stock > 0 || stats.out_of_stock > 0 ? `
             <div class="card mb-2" style="border-color: rgba(251, 191, 36, 0.3); background: rgba(251, 191, 36, 0.04);">
               <div style="display: flex; align-items: center; gap: 0.5rem; color: var(--amber-400);">
                 ${Icons.alertTriangle}
                 <strong class="text-sm">Inventory Alerts</strong>
               </div>
               <p class="text-sm text-secondary mt-1">
-                ${stats.lowStock > 0 ? `${stats.lowStock} book(s) with low stock (≤ 2).` : ''}
-                ${stats.outOfStock > 0 ? ` ${stats.outOfStock} book(s) out of stock.` : ''}
+                ${stats.low_stock > 0 ? `${stats.low_stock} book(s) with low stock (≤ 2).` : ''}
+                ${stats.out_of_stock > 0 ? ` ${stats.out_of_stock} book(s) out of stock.` : ''}
               </p>
             </div>
           ` : ''}
@@ -1043,8 +1044,8 @@ const Pages = {
                   ${lowStockBooks.map(b => `
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0; border-bottom: 1px solid var(--border-color);">
                       <div>
-                        <div class="text-sm font-medium">${b.title.length > 25 ? b.title.slice(0, 25) + '…' : b.title}</div>
-                        <div class="text-xs text-muted">${b.author}</div>
+                        <div class="text-sm font-medium">${Utils.escapeHtml(b.title).length > 25 ? Utils.escapeHtml(b.title).slice(0, 25) + '…' : Utils.escapeHtml(b.title)}</div>
+                        <div class="text-xs text-muted">${Utils.escapeHtml(b.author)}</div>
                       </div>
                       <span class="badge badge-worn">${b.quantity} left</span>
                     </div>
@@ -1060,6 +1061,7 @@ const Pages = {
 
   // ── ADMIN: INVENTORY MANAGEMENT ──
   async adminInventory() {
+    if (!Auth.isAdmin) { Router.navigate('login'); return; }
     const page = document.getElementById('page-content');
     Utils.showLoader(page);
 
@@ -1089,11 +1091,11 @@ const Pages = {
                   <td>
                     <div class="flex items-center gap-05">
                       <span style="font-size: 1.25rem;">${Utils.getBookEmoji(b.genre)}</span>
-                      <span class="text-sm font-medium">${b.title.length > 30 ? b.title.slice(0, 30) + '…' : b.title}</span>
+                      <span class="text-sm font-medium">${Utils.escapeHtml(b.title).length > 30 ? Utils.escapeHtml(b.title).slice(0, 30) + '…' : Utils.escapeHtml(b.title)}</span>
                     </div>
                   </td>
-                  <td class="text-sm text-secondary">${b.author}</td>
-                  <td class="text-sm text-muted" style="font-family: monospace; font-size: 0.75rem;">${b.isbn || '—'}</td>
+                  <td class="text-sm text-secondary">${Utils.escapeHtml(b.author)}</td>
+                  <td class="text-sm text-muted" style="font-family: monospace; font-size: 0.75rem;">${Utils.escapeHtml(b.isbn || '—')}</td>
                   <td><span class="badge ${Utils.getConditionBadgeClass(b.condition)}">${b.condition}</span></td>
                   <td class="text-sm font-semibold text-emerald">${Utils.formatPrice(b.studentPrice)}</td>
                   <td>
@@ -1301,6 +1303,7 @@ const Pages = {
 
   // ── ADMIN: ORDER MANAGEMENT ──
   async adminOrders() {
+    if (!Auth.isAdmin) { Router.navigate('login'); return; }
     const page = document.getElementById('page-content');
     Utils.showLoader(page);
 
@@ -1322,13 +1325,10 @@ const Pages = {
       cancelled: allOrders.filter(o => o.status === 'cancelled').length
     };
 
-    // Pre-fetch book titles for all order items
+    // Pre-fetch book titles for all order items using batch DB lookup
     const allBookIds = [...new Set(filteredOrders.flatMap(o => o.items.map(i => i.bookId)))];
-    const bookMap = {};
-    for (const bid of allBookIds) {
-      const bk = await DB.getBookById(bid);
-      bookMap[bid] = bk;
-    }
+    const books = await DB.getBooksByIds(allBookIds);
+    const bookMap = Object.fromEntries(books.map(b => [b.id, b]));
 
     page.innerHTML = `
       <div class="admin-layout">
@@ -1376,7 +1376,7 @@ const Pages = {
                   <ul class="order-items-list">
                     ${order.items.map(item => {
                       const bk = bookMap[item.bookId];
-                      return `<li>📕 ${bk ? bk.title : 'Deleted Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
+                      return `<li>📕 ${bk ? Utils.escapeHtml(bk.title) : 'Deleted Book'} × ${item.quantity} — ${Utils.formatPrice(item.priceAtPurchase * item.quantity)}</li>`;
                     }).join('')}
                   </ul>
 
@@ -1528,8 +1528,7 @@ const Pages = {
     const btn = document.getElementById('profile-save-btn');
     btn.disabled = true; btn.textContent = 'Saving...';
 
-    const { error } = await supabaseClient
-      .from('users').update({ name }).eq('id', Auth.user.id);
+    const { error } = await DB.updateProfile(Auth.user.id, { name });
 
     if (error) {
       Toast.error('Could not save profile. Please try again.');
@@ -1772,12 +1771,16 @@ const Pages = {
 
     const [myBooks, myOrders] = await Promise.all([
       DB.getBooksBySeller(Auth.user.id),
-      DB.getOrders(Auth.user.id)
+      DB.getOrdersForSeller(Auth.user.id)
     ]);
 
+    // totalRevenue calculation updated to use quantity * priceAtPurchase
     const totalRevenue = myOrders
-      .filter(o => !['cancelled'].includes(o.status))
-      .reduce((s, o) => s + Number(o.totalAmount), 0);
+      .reduce((s, o) => {
+         // order items only contains books sold by this seller (filtered in DB)
+         const orderTotal = o.items.reduce((sum, item) => sum + (item.quantity * item.priceAtPurchase), 0);
+         return s + orderTotal;
+      }, 0);
 
     page.innerHTML = `
       <div class="container section">
@@ -1833,8 +1836,8 @@ const Pages = {
                         <div class="flex items-center gap-05">
                           <span style="font-size: 1.25rem;">${Utils.getBookEmoji(b.genre)}</span>
                           <div>
-                            <div class="text-sm font-medium">${b.title.length > 35 ? b.title.slice(0,35)+'…' : b.title}</div>
-                            <div class="text-xs text-muted">${b.author}</div>
+                            <div class="text-sm font-medium">${Utils.escapeHtml(b.title).length > 35 ? Utils.escapeHtml(b.title).slice(0,35)+'…' : Utils.escapeHtml(b.title)}</div>
+                            <div class="text-xs text-muted">${Utils.escapeHtml(b.author)}</div>
                           </div>
                         </div>
                       </td>
@@ -1860,6 +1863,7 @@ const Pages = {
 
   // ── ADMIN: MANAGE USERS ──
   async adminUsers() {
+    if (!Auth.isAdmin) { Router.navigate('login'); return; }
     const page = document.getElementById('page-content');
     Utils.showLoader(page);
 
@@ -1940,22 +1944,21 @@ const Pages = {
 
   // ── ADMIN: REPORTS ──
   async adminReports() {
+    if (!Auth.isAdmin) { Router.navigate('login'); return; }
     const page = document.getElementById('page-content');
     Utils.showLoader(page);
 
+    const { data: statsJson } = await supabaseClient.rpc('get_admin_report_stats');
+    const revenue = {
+       total: statsJson?.total_revenue || 0,
+       completed: statsJson?.total_revenue || 0, // In an ideal system we split this, RPC simplified it
+    };
+
     const [allOrders, allBooks, allUsers] = await Promise.all([
-      DB.getOrders(),
+      DB.getOrders(), // We still need this for the charts
       DB.getBooks(),
       DB.getUsers()
     ]);
-
-    // Revenue by status
-    const revenue = {
-      total: allOrders.filter(o => o.status !== 'cancelled').reduce((s,o) => s + Number(o.totalAmount), 0),
-      pending: allOrders.filter(o => o.status === 'pending').reduce((s,o) => s + Number(o.totalAmount), 0),
-      completed: allOrders.filter(o => ['shipped','collected'].includes(o.status)).reduce((s,o) => s + Number(o.totalAmount), 0),
-      cancelled: allOrders.filter(o => o.status === 'cancelled').reduce((s,o) => s + Number(o.totalAmount), 0)
-    };
 
     // Genre breakdown
     const genreCounts = {};
