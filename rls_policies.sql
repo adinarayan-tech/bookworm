@@ -17,8 +17,11 @@
 
 
 -- ── STEP 1: Create any missing tables ─────────────────────
--- These are CREATE TABLE IF NOT EXISTS statements.
--- If the table already exists, this is a no-op.
+-- CREATE TABLE IF NOT EXISTS is a no-op when the table already exists.
+-- The ALTER TABLE ... ADD COLUMN IF NOT EXISTS blocks below act as
+-- safe migrations — they backfill columns that may be absent on
+-- tables that were created before those columns were defined.
+-- Every statement here is idempotent and safe to re-run.
 
 -- public.users (mirrors auth.users via trigger)
 CREATE TABLE IF NOT EXISTS public.users (
@@ -29,6 +32,12 @@ CREATE TABLE IF NOT EXISTS public.users (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Backfill any missing columns on pre-existing users table:
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS name       TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS email      TEXT;
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role       TEXT NOT NULL DEFAULT 'user';
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- public.books
 CREATE TABLE IF NOT EXISTS public.books (
@@ -47,6 +56,17 @@ CREATE TABLE IF NOT EXISTS public.books (
   listed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Backfill any missing columns on pre-existing books table:
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS author         TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS isbn           TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS genre          TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS condition      TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS original_price NUMERIC(10,2);
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS description    TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS image_url      TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS seller_id      UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS listed_at      TIMESTAMPTZ NOT NULL DEFAULT NOW();
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- public.orders
 CREATE TABLE IF NOT EXISTS public.orders (
@@ -66,6 +86,16 @@ CREATE TABLE IF NOT EXISTS public.orders (
   created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at         TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Backfill any missing columns on pre-existing orders table:
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS fulfillment_type  TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping_name     TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping_address  TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping_city     TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping_zip      TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS shipping_phone    TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS collect_date      DATE;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS collect_time_slot TEXT;
+ALTER TABLE public.orders ADD COLUMN IF NOT EXISTS updated_at        TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- public.order_items
 CREATE TABLE IF NOT EXISTS public.order_items (
@@ -76,8 +106,10 @@ CREATE TABLE IF NOT EXISTS public.order_items (
   price_at_purchase NUMERIC(10,2) NOT NULL,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+-- Backfill any missing columns on pre-existing order_items table:
+ALTER TABLE public.order_items ADD COLUMN IF NOT EXISTS price_at_purchase NUMERIC(10,2);
 
--- public.reviews  ← this was the missing table causing your error
+-- public.reviews
 CREATE TABLE IF NOT EXISTS public.reviews (
   id         UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   book_id    UUID NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
@@ -88,6 +120,9 @@ CREATE TABLE IF NOT EXISTS public.reviews (
   -- One review per user per book
   UNIQUE (book_id, user_id)
 );
+-- Backfill any missing columns on pre-existing reviews table:
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS comment    TEXT;
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 
 -- ── STEP 2: Enable RLS on all tables ──────────────────────
