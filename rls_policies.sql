@@ -169,7 +169,7 @@ BEGIN
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'name', ''),
     NEW.email,
-    COALESCE(NEW.raw_user_meta_data->>'role', 'user')
+    'user' -- Never trust client-supplied role; all new signups are 'user'
   )
   ON CONFLICT (id) DO NOTHING;
   RETURN NEW;
@@ -410,3 +410,43 @@ FROM pg_tables
 WHERE schemaname = 'public'
   AND tablename IN ('users', 'books', 'orders', 'order_items', 'reviews')
 ORDER BY tablename;
+
+
+-- ============================================================
+-- STORE PROCEDURES / RPC FUNCTIONS
+-- ============================================================
+
+-- 1. Atomic Stock Decrement
+-- Prevents race conditions when multiple users buy the last copy.
+CREATE OR REPLACE FUNCTION public.decrement_stock(book_id UUID, amount INTEGER)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  UPDATE public.books
+  SET quantity = quantity - amount,
+      updated_at = NOW()
+  WHERE id = book_id
+    AND quantity >= amount;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Insufficient stock for book %', book_id;
+  END IF;
+END;
+$$;
+
+-- 2. Admin Report Aggregation
+-- Prevents N+1 and memory issues by computing report stats server-side.
+CREATE OR REPLACE FUNCTION public.get_admin_report_stats()
+RETURNS json
+LANGUAGE sql
+SECURITY DEFINER
+AS $$
+  SELECT json_build_object(
+    'total_revenue',    COALESCE(SUM(total_amount) FILTER (WHERE status != 'cancelled'), 0),
+    'total_orders',     COUNT(*),
+    'pending_orders',   COUNT(*) FILTER (WHERE status = 'pending'),
+    'cancelled_orders', COUNT(*) FILTER (WHERE status = 'cancelled')
+  ) FROM public.orders;
+$$;
