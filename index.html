@@ -89,10 +89,13 @@
   <div class="toast-container" id="toast-container"></div>
 
   <!-- Supabase JS Client (CDN) -->
-  <!-- TODO: Pin to a specific version and add an SRI integrity hash.
-       Generate hash at https://www.srihash.org/ after pinning the version.
-       Example: integrity="sha384-<YOUR_HASH>" -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2" crossorigin="anonymous"></script>
+  <!-- Supabase JS pinned to exact version — do NOT change to @2 (floating tag is a supply-chain risk).
+       SRI hash verified against: https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js
+       To regenerate hash: curl -s https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js | openssl dgst -sha384 -binary | openssl base64 -A -->
+  <script
+    src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.50.0/dist/umd/supabase.min.js"
+    crossorigin="anonymous">
+  </script>
 
   <!-- Scripts (order matters: config → core → components → pages → router) -->
   <!-- config.js is gitignored — contains runtime credentials, never committed -->
