@@ -1,0 +1,17 @@
+# ── Runtime credentials (NEVER commit) ──
+config.js
+
+# ── Environment files ──
+.env
+.env.local
+.env.*.local
+
+# ── OS artifacts ──
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Editor artifacts ──
+.vscode/settings.json
+*.suo
+*.user
