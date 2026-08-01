@@ -80,6 +80,15 @@ const Utils = {
         <div class="loader-spinner"></div>
         <p class="text-secondary">Loading...</p>
       </div>`;
+  },
+  escapeHtml(str) {
+    if (str == null) return '';
+    return String(str)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#x27;');
   }
 };
 
@@ -118,6 +127,14 @@ const DB = {
     const { data, error } = await supabaseClient
       .from('books').select('*').eq('id', id).single();
     if (error) { console.error('getBookById:', error); return null; }
+    return _toCamel(data);
+  },
+
+  async getBooksByIds(ids) {
+    if (!ids || !ids.length) return [];
+    const { data, error } = await supabaseClient
+      .from('books').select('*').in('id', ids);
+    if (error) { console.error('getBooksByIds:', error); return []; }
     return _toCamel(data);
   },
 
@@ -234,22 +251,13 @@ const DB = {
   },
 
   async createOrder(orderData) {
-    // 1. Validate stock
+    // 1. Decrement stock atomically (this will fail if not enough stock)
     for (const item of orderData.items) {
-      const { data: book } = await supabaseClient
-        .from('books').select('id, title, quantity').eq('id', item.bookId).single();
-      if (!book || book.quantity < item.quantity) {
-        return { error: `"${book ? book.title : 'Unknown book'}" is out of stock or insufficient quantity.` };
+      const { error } = await supabaseClient
+        .rpc('decrement_stock', { book_id: item.bookId, amount: item.quantity });
+      if (error) {
+        return { error: `Stock update failed for a book: ${error.message}` };
       }
-    }
-
-    // 2. Decrement stock
-    for (const item of orderData.items) {
-      const { data: book } = await supabaseClient
-        .from('books').select('quantity').eq('id', item.bookId).single();
-      await supabaseClient.from('books')
-        .update({ quantity: book.quantity - item.quantity, updated_at: new Date().toISOString() })
-        .eq('id', item.bookId);
     }
 
     // 3. Create order row
@@ -324,6 +332,15 @@ const DB = {
     return _toCamel(data);
   },
 
+  async updateProfile(userId, updates) {
+    const { name } = updates; // only allow name to be updated
+    const { data, error } = await supabaseClient
+      .from('users').update({ name, updated_at: new Date().toISOString() })
+      .eq('id', userId).select().single();
+    if (error) { console.error('updateProfile:', error); return null; }
+    return _toCamel(data);
+  },
+
   // ── Stats (Admin) ──
   async getStats() {
     const books = await this.getBooks();
@@ -393,6 +410,35 @@ const DB = {
       .order('listed_at', { ascending: false });
     if (error) { console.error('getBooksBySeller:', error); return []; }
     return _toCamel(data);
+  },
+
+  async getOrdersForSeller(sellerId) {
+    const { data, error } = await supabaseClient
+      .from('order_items')
+      .select('*, orders(*), books!inner(seller_id)')
+      .eq('books.seller_id', sellerId);
+    
+    if (error) { console.error('getOrdersForSeller:', error); return []; }
+    
+    // Transform to look somewhat like standard orders array for UI
+    // Group items by order
+    const ordersMap = new Map();
+    for (const row of data) {
+      const orderId = row.orders.id;
+      if (!ordersMap.has(orderId)) {
+         const orderCamel = _toCamel(row.orders);
+         orderCamel.items = [];
+         ordersMap.set(orderId, orderCamel);
+      }
+      
+      ordersMap.get(orderId).items.push({
+         bookId: row.book_id,
+         quantity: row.quantity,
+         priceAtPurchase: row.price_at_purchase
+      });
+    }
+    
+    return Array.from(ordersMap.values()).sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
   }
 };
 
@@ -426,12 +472,12 @@ const Auth = {
     }
   },
 
-  async signUp(name, email, password, role) {
+  async signUp(name, email, password) { // 'role' parameter removed
     const { data, error } = await supabaseClient.auth.signUp({
       email,
       password,
       options: {
-        data: { name, role } // Trigger will copy this to public.users
+        data: { name } // No role sent. Trigger defaults to 'user'
       }
     });
     if (error) { console.error('signUp:', error); throw error; }
@@ -601,7 +647,10 @@ const Toast = {
     const icons = { success: '✅', error: '❌', info: 'ℹ️' };
     const toast = document.createElement('div');
     toast.className = `toast toast-${type}`;
-    toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span><span>${message}</span>`;
+    toast.innerHTML = `<span class="toast-icon">${icons[type] || icons.info}</span>`;
+    const textSpan = document.createElement('span');
+    textSpan.textContent = message; // Safely set text content
+    toast.appendChild(textSpan);
     this._container.appendChild(toast);
     setTimeout(() => {
       toast.classList.add('removing');
