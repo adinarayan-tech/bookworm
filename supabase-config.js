@@ -18,8 +18,14 @@
 (function () {
   'use strict';
 
-  // ── Runtime config injected by config.js (gitignored) ──
-  var cfg = window.__BOOKWORM_CONFIG__;
+  // ── Runtime config injected by config.js (or fallback for static/GitHub Pages deployment) ──
+  var DEFAULT_URL = 'https://nnqpbhlnhhvpkjxcrcoq.supabase.co';
+  var DEFAULT_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5ucXBiaGxuaGh2cGtqeGNyY29xIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYzNDI4NDksImV4cCI6MjA5MTkxODg0OX0.-XzJzTenLXfoLf0ibhStRk43V-PAqCFU1YvWmtd16Nk';
+
+  var cfg = window.__BOOKWORM_CONFIG__ || {
+    SUPABASE_URL: DEFAULT_URL,
+    SUPABASE_ANON_KEY: DEFAULT_ANON_KEY
+  };
 
   if (!cfg || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) {
     var msg =
