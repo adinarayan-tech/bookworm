@@ -2101,7 +2101,5 @@ const Pages = {
         </div>
       </div>
     `;
-  },
-
   }
 };

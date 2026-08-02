@@ -73,9 +73,21 @@ const Router = {
     if (routeKey !== undefined && this._routes[routeKey]) {
       this._current = path;
       pageContent.innerHTML = '';
-      pageContent.className = 'page-content page-enter';
-      // Await the async page renderer
-      await this._routes[routeKey](params);
+      pageContent.className = 'page-content';
+      try {
+        await this._routes[routeKey](params);
+      } catch (err) {
+        console.error('[Router] Page render error on route "' + path + '":', err);
+        pageContent.innerHTML = `
+          <div class="container">
+            <div class="empty-state" style="padding-top: 6rem;">
+              <div class="empty-state-icon">⚠️</div>
+              <h2 class="empty-state-title">Something went wrong</h2>
+              <p class="empty-state-desc" style="color:var(--rose-400);font-family:monospace;font-size:0.85rem;max-width:600px;margin:0 auto;">${err.message}</p>
+              <button class="btn btn-primary" style="margin-top:1.5rem;" onclick="Router.navigate('')">Go Home</button>
+            </div>
+          </div>`;
+      }
       this._updateNavbar();
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } else {

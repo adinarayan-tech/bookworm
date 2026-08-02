@@ -692,7 +692,7 @@ const Icons = {
 // ── Initialize everything on DOM ready ──
 document.addEventListener('DOMContentLoaded', async () => {
   await DB.init();
-  Auth.init();
+  await Auth.init();
   Cart.init();
   Toast.init();
   Router.init();
